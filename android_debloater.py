@@ -64,6 +64,48 @@ BATTERY_SETTINGS = [
     ("global", "adaptive_battery_management_enabled", "1"),
 ]
 
+# AI features, only changed with --ai (all devices)
+AI_SETTINGS = [
+    # Smart replies/actions suggested in notifications
+    ("global", "smart_replies_enabled", "0"),
+    # Assistant may not read text or take screenshots of the current screen
+    ("secure", "assist_structure_enabled", "0"),
+    ("secure", "assist_screenshot_enabled", "0"),
+    # Don't start the assistant by long-pressing home or swiping from a corner
+    ("secure", "assist_long_press_home_enabled", "0"),
+    ("secure", "assist_touch_gesture_enabled", "0"),
+]
+AI_PACKAGES = [
+    "com.google.android.apps.bard",                # Gemini
+    "com.google.android.aicore",                   # AICore (on-device Gemini Nano)
+    "com.google.android.apps.aiwallpapers",        # AI wallpapers
+    "com.google.android.as",                       # Android System Intelligence
+    "com.google.android.as.oss",                   # Private Compute Services (ASI network bridge)
+]
+# Apps the user installed themselves: only reported, never removed
+AI_USER_APPS = {
+    "com.openai.chatgpt": "ChatGPT",
+    "com.microsoft.copilot": "Microsoft Copilot",
+    "com.anthropic.claude": "Claude",
+    "ai.perplexity.app.android": "Perplexity",
+    "com.deepseek.chat": "DeepSeek",
+}
+
+# Cloud features, only changed with --cloud (all devices)
+CLOUD_SETTINGS = [
+    # Don't automatically restore app data from the cloud when an app is reinstalled
+    ("secure", "backup_auto_restore", "0"),
+]
+CLOUD_USER_APPS = {
+    "com.google.android.apps.photos": "Google Photos",
+    "com.google.android.apps.docs": "Google Drive",
+    "com.dropbox.android": "Dropbox",
+    "com.microsoft.skydrive": "OneDrive",
+    "com.nextcloud.client": "Nextcloud",
+    "mega.privacy.android.app": "MEGA",
+    "me.proton.android.drive": "Proton Drive",
+}
+
 # Packages to remove (--user 0) on all devices
 COMMON_PACKAGES = [
     # Google SafetyCore (client-side scanning)
@@ -103,6 +145,36 @@ VENDOR_PROFILES = {
             "com.samsung.android.bixby.agent",     # Bixby (if only Google Assistant is used)
             "com.microsoft.appmanager",            # Link to Windows (SMS/contacts/mic access)
         ],
+        # --ai: Galaxy AI. Settings are only written if the key exists on the device.
+        "ai_settings": [
+            ("secure", "noti_intelligence_summarize_content", "0"),   # notification summaries
+            ("secure", "noti_intelligence_priority_content", "0"),    # AI notification priority
+            ("system", "call_transcript", "0"),                       # call transcripts
+            ("global", "translate_during_calls", "0"),                # live call translation
+            ("system", "voip_translator_enable", "0"),                # translation in VoIP calls
+        ],
+        "ai_packages": [
+            "com.samsung.android.aicore",          # Samsung AI Core (Galaxy AI)
+            "com.samsung.android.smartsuggestions",  # Smart suggestions (reads notifications)
+            "com.samsung.android.app.interpreter",   # Interpreter (live translation)
+            "com.samsung.android.callassistant",     # Call Assist / Bixby Text Call
+            "com.samsung.android.visionintelligence",  # Bixby Vision
+            "com.samsung.android.bixbyvision.framework",
+            "com.samsung.android.vision.model",      # vision AI models
+            "com.samsung.android.bixby.agent",       # Bixby
+            "com.samsung.android.bixby.wakeup",      # "Hi Bixby" voice wake-up
+            "com.samsung.android.bixby.ondevice.*",  # Bixby on-device language packs
+        ],
+        # --cloud: settings only written if the key exists on the device
+        "cloud_settings": [
+            ("system", "mcf_continuity", "0"),                  # continue apps on other devices
+            ("secure", "ltw_clipboard_sync_state", "0"),        # clipboard sync with Windows
+            ("secure", "samsungflow_clipboard_sync_state", "0"),  # clipboard sync via Samsung Flow
+        ],
+        "cloud_packages": [
+            "com.samsung.android.scloud",          # Samsung Cloud (backup/sync)
+            "com.microsoft.skydrive",              # OneDrive (preinstalled on Samsung)
+        ],
     },
     "xiaomi": {
         "marker_packages": ["com.miui.home", "com.miui.securitycenter"],
@@ -122,6 +194,7 @@ VENDOR_ALIASES = {"redmi": "xiaomi", "poco": "xiaomi"}
 # script, in addition to the lists above.
 EXTRA_MANAGED_SETTINGS = [
     ("system", "min_refresh_rate"),
+    ("system", "screen_off_timeout"),
     ("global", "private_dns_mode"),
     ("global", "private_dns_specifier"),
     ("global", "assisted_gps_enabled"),
@@ -468,17 +541,33 @@ def parse_backup(path: str):
 
 
 def managed_settings() -> set[tuple[str, str]]:
-    keys = {(ns, k) for ns, k, _ in COMMON_SETTINGS + BATTERY_SETTINGS}
+    keys = {(ns, k) for ns, k, _ in
+            COMMON_SETTINGS + BATTERY_SETTINGS + AI_SETTINGS + CLOUD_SETTINGS}
     for profile in VENDOR_PROFILES.values():
-        keys |= {(ns, k) for ns, k, _ in profile["settings"]}
+        for group in ("settings", "ai_settings", "cloud_settings"):
+            keys |= {(ns, k) for ns, k, _ in profile.get(group, [])}
     return keys | set(EXTRA_MANAGED_SETTINGS)
 
 
-def managed_packages() -> set[str]:
-    pkgs = set(COMMON_PACKAGES) | set(EXTRA_MANAGED_PACKAGES)
+def managed_packages(installed: set[str] | None = None) -> set[str]:
+    pkgs = set(COMMON_PACKAGES) | set(EXTRA_MANAGED_PACKAGES) | set(AI_PACKAGES)
     for profile in VENDOR_PROFILES.values():
-        pkgs |= set(profile["packages"]) | set(profile.get("optional_packages", []))
-    return pkgs
+        for group in ("packages", "optional_packages", "ai_packages", "cloud_packages"):
+            pkgs |= set(profile.get(group, []))
+    # Expand prefix patterns like "com.example.*" against the given package list
+    return set(expand_packages(sorted(pkgs), installed or set()))
+
+
+def expand_packages(packages: list[str], installed: set[str]) -> list[str]:
+    """Replace patterns ending in ".*" by the matching installed packages; drop duplicates."""
+    result: list[str] = []
+    for pkg in packages:
+        if pkg.endswith(".*"):
+            matches = sorted(p for p in installed if p.startswith(pkg[:-1]))
+            result += matches or [pkg]  # keep the pattern so it's reported as not installed
+        else:
+            result.append(pkg)
+    return list(dict.fromkeys(result))
 
 
 def short(value: str | None, limit: int = 70) -> str:
@@ -522,6 +611,8 @@ def restore_backup(path: str, apply: bool, restore_all: bool, force: bool) -> No
         else:
             keys = {k for (n, k) in managed if n == ns}
 
+        keys.discard("enabled_notification_listeners")  # restored separately below
+        keys.discard("backup_enabled")                   # restored via bmgr below
         for key in sorted(keys):
             in_backup = key in old and old[key] is not None
             target = old.get(key)
@@ -549,6 +640,37 @@ def restore_backup(path: str, apply: bool, restore_all: bool, force: bool) -> No
                 failed += 1
                 print(f"[WARN] Could not restore {ns}/{key}: {err}")
 
+    # Notification access revoked with --revoke-notifications: grant it back via the
+    # notification service (writing the setting alone isn't reliably picked up)
+    old_listeners = [c for c in (backup["secure"].get("enabled_notification_listeners") or "")
+                     .split(":") if "/" in c]
+    current_listeners = notification_listeners()
+    for comp in old_listeners:
+        if comp in current_listeners:
+            continue
+        changed += 1
+        desc = f"{comp.split('/')[0]}: notification access"
+        if not apply:
+            print(f"[DRY]  {desc} would be granted again")
+            continue
+        ok, msg = set_listener_access(comp, allow=True)
+        if ok:
+            print(f"[SET]  {desc} granted again")
+        else:
+            failed += 1
+            print(f"[WARN] {desc} could not be granted: {msg}")
+
+    # Google backup turned off with --cloud: turn it on again via the backup manager
+    if backup["secure"].get("backup_enabled") == "1" and not google_backup_enabled():
+        changed += 1
+        if not apply:
+            print("[DRY]  Google backup would be turned on again")
+        elif set_google_backup(True):
+            print("[SET]  Google backup turned on again")
+        else:
+            failed += 1
+            print("[WARN] Google backup could not be turned on again")
+
     if changed == 0:
         print("[OK]   All settings already match the backup.")
 
@@ -561,11 +683,11 @@ def restore_backup(path: str, apply: bool, restore_all: bool, force: bool) -> No
     if backup_pkgs is None:
         print("[INFO] Backup has no package list (older version); "
               "checking the packages managed by the script.")
-        candidates = managed_packages()
+        candidates = managed_packages(on_system)
         was_disabled: set[str] = set()
     else:
         candidates = backup_pkgs["installed"] if restore_all else (
-            backup_pkgs["installed"] & managed_packages())
+            backup_pkgs["installed"] & managed_packages(backup_pkgs["installed"]))
         was_disabled = backup_pkgs["disabled"]
 
     pkg_changes = 0
@@ -618,7 +740,8 @@ def apply_privacy_settings(settings: list[tuple[str, str, str]], apply: bool) ->
         if not apply:
             print(f"[DRY]  {change}")
             continue
-        code, _, err = run_adb(["shell", "settings", "put", namespace, key, value])
+        code, _, err = run_adb(
+            ["shell", f"settings put {namespace} {shlex.quote(key)} {shlex.quote(value)}"])
         if code != 0:
             print(f"[WARN] Could not set {namespace}/{key}: {err}")
             continue
@@ -629,6 +752,151 @@ def apply_privacy_settings(settings: list[tuple[str, str, str]], apply: bool) ->
         else:
             print(f"[WARN] {namespace}/{key} was reset by the system "
                   f"(set {value}, now {now if now is not None else 'not set'})")
+
+
+def notification_listeners() -> list[str]:
+    """Components (package/class) that currently have notification access."""
+    raw = get_setting("secure", "enabled_notification_listeners") or ""
+    return [c for c in raw.split(":") if "/" in c]
+
+
+def set_listener_access(component: str, allow: bool) -> tuple[bool, str]:
+    """Grant or revoke notification access for one component and check the result."""
+    action = "allow_listener" if allow else "disallow_listener"
+    # Quote the component: names like "...Manager$ListenerService" contain "$",
+    # which the device shell would otherwise expand to an empty variable
+    code, out, err = run_adb(["shell", f"cmd notification {action} {shlex.quote(component)}"])
+    if code != 0:
+        return False, err or out
+    for _ in range(5):  # the setting is updated asynchronously
+        if (component in notification_listeners()) == allow:
+            return True, ""
+        time.sleep(1)
+    return False, err or out
+
+
+def revoke_notification_access(packages: list[str], apply: bool) -> None:
+    print("\n--- Revoking notification access ---")
+    current = notification_listeners()
+    for pkg in packages:
+        components = [c for c in current if c.split("/")[0] == pkg]
+        if not components:
+            print(f"[SKIP] {pkg} (has no notification access)")
+            continue
+        for comp in components:
+            if not apply:
+                print(f"[DRY]  {pkg}: notification access would be revoked")
+                continue
+            ok, msg = set_listener_access(comp, allow=False)
+            if ok:
+                print(f"[SET]  {pkg}: notification access revoked")
+            else:
+                print(f"[WARN] {pkg}: could not revoke notification access {msg}")
+
+
+def disable_adb() -> None:
+    """Turn off Developer options and USB debugging. Must be the very last step."""
+    print("\n--- Turning off USB debugging ---")
+    run_adb(["shell", "settings", "put", "global", "development_settings_enabled", "0"])
+    print("[SET]  Developer options off")
+    print("[SET]  USB debugging off - the adb connection ends now")
+    # The connection drops while this runs, so the result can't be checked
+    run_adb(["shell", "settings", "put", "global", "adb_enabled", "0"])
+
+
+def existing_settings(settings: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+    """Keep only settings whose key exists on the device (avoids creating stray keys)."""
+    return [s for s in settings if get_setting(s[0], s[1]) is not None]
+
+
+def google_backup_enabled() -> bool:
+    _, out, _ = run_adb(["shell", "bmgr", "enabled"])
+    return "enabled" in out and "disabled" not in out
+
+
+def set_google_backup(enable: bool) -> bool:
+    """Turn Google (Android) backup on/off via the backup manager and check the result."""
+    run_adb(["shell", "bmgr", "enable", "true" if enable else "false"])
+    return google_backup_enabled() == enable
+
+
+def apply_google_backup_off(apply: bool) -> None:
+    print("\n--- Google backup ---")
+    if not google_backup_enabled():
+        print("[OK]   Google backup is off (already set)")
+    elif not apply:
+        print("[DRY]  Google backup: on -> off")
+    elif set_google_backup(False):
+        print("[SET]  Google backup: on -> off")
+    else:
+        print("[WARN] Google backup could not be turned off")
+
+
+def ai_recommendations(dev: dict[str, str], installed: set[str]) -> list[str]:
+    """AI features that can't (or shouldn't) be changed via ADB. Only shown with --ai."""
+    tips: list[str] = []
+    samsung = dev["profile"] == "samsung" and not dev["custom_rom"]
+
+    assistant = (get_setting("secure", "assistant") or "").split("/")[0]
+    if assistant:
+        path = ("Settings > Apps > Choose default apps > Digital assistant app" if samsung
+                else "Settings > Apps > Default apps > Digital assistant app")
+        tips.append(
+            f"Default digital assistant is {assistant} (Google Assistant/Gemini). "
+            f"If AI assistants aren't wanted, set it to None: {path}."
+        )
+    if samsung:
+        tips.append(
+            "Galaxy AI: turn on 'Process data only on device' so no data goes to Samsung/Google "
+            "AI servers, and turn off the features you don't use: Settings > Galaxy AI "
+            "(older One UI: Settings > Advanced features > Advanced intelligence)."
+        )
+    if "com.google.android.googlequicksearchbox" in installed:
+        path = ("Settings > Display > Navigation bar > Circle to Search" if samsung
+                else "Settings > System > Navigation mode")
+        tips.append(f"Circle to Search (Google AI search): turn it off if unused: {path}.")
+    if (get_setting("secure", "default_input_method") or "").startswith(
+            "com.google.android.inputmethod.latin"):
+        tips.append(
+            "Gboard is the keyboard. It has AI writing features (e.g. Smart Compose, "
+            "proofreading); turn them off in the Gboard settings if they aren't wanted."
+        )
+    user_apps = [name for pkg, name in AI_USER_APPS.items() if pkg in installed]
+    if user_apps:
+        tips.append(
+            f"AI apps installed by the user: {', '.join(user_apps)}. They aren't removed "
+            "automatically; uninstall them if they aren't wanted."
+        )
+    return tips
+
+
+def cloud_recommendations(dev: dict[str, str], installed: set[str]) -> list[str]:
+    """Cloud features that can't (or shouldn't) be changed via ADB. Only shown with --cloud."""
+    tips: list[str] = []
+    samsung = dev["profile"] == "samsung" and not dev["custom_rom"]
+
+    if get_setting("global", "master_sync_status") == "1":
+        _, out, _ = run_adb(["shell", "dumpsys", "account"])
+        types = sorted(set(re.findall(r"Account \{name=[^,]*, type=([^}]+)\}", out)))
+        path = ("Settings > Accounts and backup > Manage accounts > Auto sync data" if samsung
+                else "Settings > Passwords & accounts > Automatically sync app data")
+        accounts = f" ({len(types)} account type(s): {', '.join(types)})" if types else ""
+        tips.append(
+            f"Auto-sync is on{accounts}: contacts, calendars, mail etc. are synced to the cloud. "
+            f"Turn it off if not needed (mail then no longer arrives automatically): {path}."
+        )
+    cloud_apps = [name for pkg, name in CLOUD_USER_APPS.items() if pkg in installed]
+    if cloud_apps:
+        tips.append(
+            f"Cloud storage apps installed: {', '.join(cloud_apps)}. Check their backup/sync "
+            "settings (e.g. Google Photos > Settings > Backup) or uninstall them if unwanted."
+        )
+    if samsung and "com.samsung.android.samsungpass" in installed:
+        tips.append(
+            "Samsung Pass is installed; it stores passwords and passkeys in the Samsung account "
+            "cloud. If it isn't used: Settings > Security and privacy > Samsung Pass."
+        )
+    return tips
 
 
 PRIVATE_DNS_RE = re.compile(
@@ -695,7 +963,8 @@ def remove_packages(packages: list[str], installed: set[str], disabled: set[str]
 
 
 def manual_recommendations(dev: dict[str, str], installed: set[str],
-                           private_dns_set: bool) -> list[str]:
+                           private_dns_set: bool, timeout_set: bool = False,
+                           adb_off: bool = False) -> list[str]:
     """Check things that can't (or shouldn't) be changed via ADB."""
     tips: list[str] = []
     samsung = dev["profile"] == "samsung" and not dev["custom_rom"]
@@ -723,11 +992,11 @@ def manual_recommendations(dev: dict[str, str], installed: set[str],
 
     # Screen timeout
     timeout = get_setting("system", "screen_off_timeout")
-    if timeout and timeout.isdigit() and int(timeout) > 120000:
+    if not timeout_set and timeout and timeout.isdigit() and int(timeout) > 120000:
         tips.append(
             f"Screen timeout is {int(timeout) // 60000} minutes; the device stays unlocked "
-            "and readable that long. Set it to 2 minutes or less: "
-            "Settings > Display > Screen timeout."
+            "and readable that long. Set it to 2 minutes or less with --screen-timeout 60, "
+            "or: Settings > Display > Screen timeout."
         )
 
     # Device name is visible nearby via Bluetooth/hotspot/Quick Share
@@ -747,7 +1016,8 @@ def manual_recommendations(dev: dict[str, str], installed: set[str],
     if listeners:
         tips.append(
             f"{len(listeners)} app(s) can read ALL notifications. Revoke access for the ones "
-            "you no longer need (Settings > Notifications > Notification access):\n"
+            "you no longer need with --revoke-notifications PKG,PKG or in "
+            "Settings > Notifications > Notification access:\n"
             + "\n".join(f"        - {p}" for p in listeners)
         )
 
@@ -805,10 +1075,11 @@ def manual_recommendations(dev: dict[str, str], installed: set[str],
         )
 
     # USB debugging (necessarily on while the script runs)
-    tips.append(
-        "After debloating, turn USB debugging and Developer options off again: "
-        "Settings > Developer options > switch at the top."
-    )
+    if not adb_off:
+        tips.append(
+            "After debloating, turn USB debugging and Developer options off again with "
+            "--disable-adb, or: Settings > Developer options > switch at the top."
+        )
     return tips
 
 
@@ -924,6 +1195,20 @@ def main() -> None:
     parser.add_argument("--battery", action="store_true",
                         help="also apply battery runtime settings (mobile data not kept "
                              "connected on Wi-Fi, Adaptive Battery on, no forced peak refresh rate)")
+    parser.add_argument("--ai", "--AI", dest="ai", action="store_true",
+                        help="check AI features (assistant, Gemini, Galaxy AI ...) and, with "
+                             "--run, turn them off / remove them")
+    parser.add_argument("--cloud", "--CLOUD", dest="cloud", action="store_true",
+                        help="check cloud features (backup, sync, cloud apps) and, with --run, "
+                             "turn them off / remove them")
+    parser.add_argument("--screen-timeout", type=int, metavar="SECONDS",
+                        help="set the screen timeout, e.g. 60")
+    parser.add_argument("--revoke-notifications", metavar="PKG[,PKG...]",
+                        help="revoke notification access for these apps "
+                             "(package names, comma-separated)")
+    parser.add_argument("--disable-adb", action="store_true",
+                        help="with --run: turn off USB debugging and Developer options as the "
+                             "last step (ends the adb connection)")
     parser.add_argument("--no-color", action="store_true",
                         help="disable colored output (also off when NO_COLOR is set or "
                              "output is redirected)")
@@ -936,6 +1221,8 @@ def main() -> None:
                         help="with --restore: allow a backup from a different device")
     args = parser.parse_args()
     setup_colors(args.no_color)
+    if args.screen_timeout is not None and args.screen_timeout < 10:
+        parser.error("--screen-timeout must be at least 10 seconds")
     apply = args.run
 
     SERIAL = select_device(args.serial)
@@ -976,6 +1263,12 @@ def main() -> None:
                      ("global", "private_dns_specifier", args.private_dns)]
     if args.disable_agps:
         settings.append(("global", "assisted_gps_enabled", "0"))
+    if args.screen_timeout:
+        settings.append(("system", "screen_off_timeout", str(args.screen_timeout * 1000)))
+    if args.ai:
+        settings += AI_SETTINGS + existing_settings(profile.get("ai_settings", []))
+    if args.cloud:
+        settings += CLOUD_SETTINGS + existing_settings(profile.get("cloud_settings", []))
     if args.battery:
         settings += BATTERY_SETTINGS
         fix = refresh_rate_fix()
@@ -985,17 +1278,29 @@ def main() -> None:
     packages = COMMON_PACKAGES + profile["packages"]
     if args.include_optional:
         packages += profile.get("optional_packages", [])
+    if args.ai:
+        packages += AI_PACKAGES + profile.get("ai_packages", [])
+    if args.cloud:
+        packages += profile.get("cloud_packages", [])
+    packages = expand_packages(packages, installed)
 
     disabled = list_packages("-d")
 
     apply_privacy_settings(settings, apply)
+    if args.cloud:
+        apply_google_backup_off(apply)
     if args.private_dns:
         verify_private_dns(args.private_dns)
+    if args.revoke_notifications:
+        revoke_notification_access(
+            [p.strip() for p in args.revoke_notifications.split(",") if p.strip()], apply)
     remove_packages(packages, installed, disabled, apply)
 
     print("\n--- Manual recommendations ---")
     # Disabled packages don't run, so they don't need a "still installed" tip
-    tips = manual_recommendations(dev, installed - disabled, bool(args.private_dns))
+    tips = manual_recommendations(dev, installed - disabled, bool(args.private_dns),
+                                  timeout_set=bool(args.screen_timeout),
+                                  adb_off=args.disable_adb)
     for i, tip in enumerate(tips, 1):
         print(f"  {i}. {tip}")
 
@@ -1006,9 +1311,25 @@ def main() -> None:
     for i, tip in enumerate(battery_tips, 1):
         print(f"  {i}. {tip}")
 
+    active = installed - disabled
+    for flag, title, func in ((args.ai, "AI", ai_recommendations),
+                              (args.cloud, "Cloud", cloud_recommendations)):
+        if not flag:
+            continue
+        print(f"\n--- {title} recommendations ---")
+        extra_tips = func(dev, active)
+        if not extra_tips:
+            print(f"  No further {title} features found.")
+        for i, tip in enumerate(extra_tips, 1):
+            print(f"  {i}. {tip}")
+
     if apply:
         print("\nDone. A reboot of the device is recommended.")
+        if args.disable_adb:
+            disable_adb()
     else:
+        if args.disable_adb:
+            print("\n[DRY]  USB debugging and Developer options would be turned off at the end")
         print("\nDry run finished, nothing was changed. To apply: --run")
 
 

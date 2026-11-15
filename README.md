@@ -34,10 +34,15 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 |---|---|
 | `--run` | Apply the changes. Without it, the script only does a dry run. |
 | `-s`, `--serial SERIAL` | Choose a device by serial number. Defaults to `ANDROID_SERIAL`. If several devices are connected and none is chosen, the script asks which one to use. |
-| `--private-dns HOST` | Set a fixed Private DNS provider, e.g. `dns.quad9.net`. Afterwards the script checks that Android actually reached the provider, and warns if it didn't (in that mode DNS lookups would fail). |
+| `--private-dns HOST` | Set a fixed Private DNS provider, e.g. `dns.quad9.net`, and check that it works (see [Private DNS](#private-dns)). |
 | `--disable-agps` | Turn off Assisted GPS, which sends cell tower info to Google. The trade-off is a slower first GPS fix. |
 | `--include-optional` | Also remove optional packages, e.g. Bixby and Link to Windows on Samsung. |
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
+| `--ai` (or `--AI`) | Check AI features and list them; with `--run`, turn them off and remove AI system apps (see [AI and cloud features](#ai-and-cloud-features)). |
+| `--cloud` | Check cloud features (backup, sync, cloud apps); with `--run`, turn them off and remove cloud system apps (see [AI and cloud features](#ai-and-cloud-features)). |
+| `--screen-timeout SECONDS` | Set the screen timeout, e.g. `60`. Minimum 10 seconds. |
+| `--revoke-notifications PKG[,PKG...]` | Revoke notification access for these apps (package names from the manual recommendations). Restore grants it back. |
+| `--disable-adb` | With `--run`: turn off USB debugging and Developer options as the very last step. This ends the adb connection; turn USB debugging on again on the device to run the script later. |
 | `--no-color` | Turn off colored output. Colors are also off when `NO_COLOR` is set or the output is redirected to a file or pipe. |
 | `--restore FILE` | Restore settings and packages from a backup file (see [Backup & restore](#backup--restore)). |
 | `--all` | With `--restore`: restore every setting and package that differs from the backup, not only the ones the script manages. |
@@ -49,6 +54,8 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 python android_debloater.py -s <SERIAL>                              # dry run on one specific device
 python android_debloater.py --run --private-dns dns.quad9.net        # apply + encrypted DNS
 python android_debloater.py --run --disable-agps --include-optional  # apply all privacy options
+
+python android_debloater.py --run --screen-timeout 60 --revoke-notifications com.xiaomi.wearable --disable-adb
 
 python android_debloater.py --battery                                # dry run incl. battery settings
 python android_debloater.py --run --battery                          # apply privacy + battery settings
@@ -145,6 +152,135 @@ Some changes can't, or shouldn't, be made over ADB. At the end of each run, the 
 - Bixby or Link to Windows is still installed
 - No Private DNS provider set
 - Turning USB debugging off again afterwards
+
+## AI and cloud features
+
+AI and cloud features are **only checked and changed when you ask for it** with `--ai` and/or `--cloud`. Without these flags, the script doesn't touch them.
+
+```bash
+python android_debloater.py --ai --cloud               # dry run: show AI/cloud features and what would change
+python android_debloater.py --run --ai                 # turn off AI features
+python android_debloater.py --run --cloud              # turn off cloud features
+python android_debloater.py --run --ai --cloud         # both
+```
+
+### Changed with `--ai`
+
+| Setting / package | Purpose |
+|---|---|
+| `global/smart_replies_enabled=0` | No AI reply/action suggestions in notifications |
+| `secure/assist_structure_enabled=0`, `secure/assist_screenshot_enabled=0` | The assistant can't read text or take screenshots of the screen |
+| `secure/assist_long_press_home_enabled=0`, `secure/assist_touch_gesture_enabled=0` | Don't start the assistant by long-pressing home or swiping from a corner |
+| Gemini, AICore, AI wallpapers, Android System Intelligence, Private Compute Services | Google AI apps and services are removed |
+| **Samsung:** notification summaries, AI notification priority, call transcripts, live call translation | Galaxy AI settings off (only if the setting exists on the device) |
+| **Samsung:** Samsung AI Core, Smart suggestions, Interpreter, Call Assist, Bixby, Bixby Vision, Bixby voice wake-up and language packs | Galaxy AI / Bixby apps are removed |
+
+### Changed with `--cloud`
+
+| Setting / package | Purpose |
+|---|---|
+| Google backup (via `bmgr`) | Turn off Android's backup to Google Drive |
+| `secure/backup_auto_restore=0` | Don't restore app data from the cloud when an app is reinstalled |
+| **Samsung:** `mcf_continuity`, clipboard sync with Windows / Samsung Flow | Continuity and clipboard sync off (only if the setting exists) |
+| **Samsung:** Samsung Cloud, OneDrive | Preinstalled cloud apps are removed |
+
+### Recommendations
+
+Some AI and cloud features can't be changed reliably via ADB, or belong to apps the user installed. The script lists them instead:
+
+- **AI:** default digital assistant (Google Assistant/Gemini), Galaxy AI "Process data only on device", Circle to Search, Gboard AI writing features, AI apps installed by the user (e.g. ChatGPT, Copilot, Claude, Perplexity)
+- **Cloud:** auto-sync and the account types it syncs, cloud storage apps (Google Photos, Drive, Dropbox, OneDrive, Nextcloud, ...), Samsung Pass
+
+Apps the user installed themselves (e.g. ChatGPT, Google Photos) are **never removed** automatically.
+
+Example (`--ai --cloud`, dry run on a Samsung phone):
+
+```
+--- Removing packages (--user 0) ---
+[DRY]  com.google.android.as would be removed/disabled
+[DRY]  com.samsung.android.smartsuggestions would be removed/disabled
+[DRY]  com.samsung.android.scloud would be removed/disabled
+...
+
+--- AI recommendations ---
+  1. Default digital assistant is com.google.android.googlequicksearchbox (Google Assistant/Gemini). If AI assistants aren't wanted, set it to None: Settings > Apps > Choose default apps > Digital assistant app.
+  2. Galaxy AI: turn on 'Process data only on device' ...
+
+--- Cloud recommendations ---
+  1. Auto-sync is on (2 account type(s): com.google, nextcloud): contacts, calendars, mail etc. are synced to the cloud. ...
+```
+
+Everything is undone by a normal restore (see [Restoring](#restoring)), including Google backup.
+
+## Private DNS
+
+`--private-dns HOST` sets a fixed Private DNS provider (DNS over TLS). DNS lookups are then encrypted, so your mobile carrier and Wi-Fi owners can't see which domains you look up. Common providers:
+
+| Provider | Hostname |
+|---|---|
+| Quad9 | `dns.quad9.net` |
+| Cloudflare | `one.one.one.one` |
+| Mullvad | `dns.mullvad.net` |
+| AdGuard (blocks ads) | `dns.adguard-dns.com` |
+
+```bash
+python android_debloater.py --private-dns dns.quad9.net           # dry run
+python android_debloater.py --run --private-dns dns.quad9.net     # set it and check it
+```
+
+### Check after setting
+
+With a fixed provider, Android sends DNS lookups only to that provider. If it can't be reached, for example because of a typo in the hostname, websites stop loading. So after setting it, the script checks that Android actually reached the provider. It waits up to 15 seconds, because Android needs a few seconds to validate a new provider.
+
+| Result | Output |
+|---|---|
+| Provider reached and validated | `[OK]   dns.quad9.net is in use and validated (149.112.112.112, 9.9.9.9)` |
+| Not set yet (dry run) | `[SKIP] Private DNS is not set to dns.quad9.net yet (use --run to set it)` |
+| Provider not reachable | `[WARN] dns.quad9.net could not be reached. In this mode DNS lookups fail, so the device may have no internet. Check the hostname, or restore a backup (--restore) to undo it.` |
+| No network connected | `[WARN] No connected network uses Private DNS right now. Connect to Wi-Fi or mobile data and run the script again to check.` |
+
+Example run:
+
+```
+--- Privacy settings ---
+...
+[SET]  global/private_dns_mode: not set -> hostname
+[SET]  global/private_dns_specifier: not set -> dns.quad9.net
+
+--- Checking Private DNS ---
+[OK]   dns.quad9.net is in use and validated (149.112.112.112, 9.9.9.9)
+```
+
+### Check manually
+
+The same check with adb:
+
+```bash
+adb shell settings get global private_dns_mode          # hostname
+adb shell settings get global private_dns_specifier     # dns.quad9.net
+adb shell "dumpsys connectivity | grep -oE 'UsePrivateDns: \w+|PrivateDnsServerName: \S+|ValidatedPrivateDnsAddresses: \[[^]]*\]'"
+```
+
+```
+UsePrivateDns: true
+PrivateDnsServerName: dns.quad9.net
+ValidatedPrivateDnsAddresses: [9.9.9.9,149.112.112.112]
+```
+
+`ValidatedPrivateDnsAddresses` is the important part. If it's missing, Android couldn't reach the provider.
+
+On the device, the setting is under:
+
+- **Samsung:** Settings → Connections → More connection settings → Private DNS
+- **Stock Android / custom ROMs:** Settings → Network & internet → Private DNS
+
+### Undo
+
+Restore an earlier backup (see [Restoring](#restoring)), or set Private DNS back to Android's default, "Automatic":
+
+```bash
+adb shell settings put global private_dns_mode opportunistic
+```
 
 ## Battery
 
