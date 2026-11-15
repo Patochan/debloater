@@ -507,6 +507,50 @@ Brands that share an entry go in `VENDOR_ALIASES`, e.g. `"redmi": "xiaomi"`.
   ```
 
   Enter `y` to reboot it with `adb reboot`. Just pressing Enter (the default) or any other answer skips it. The question isn't asked in a dry run, when the script can't read input from an interactive terminal (e.g. in an automated job), or with `--disable-adb` (adb can't reach the device anymore then, so reboot it by hand).
+
+  **Examples:**
+
+  ```bash
+  python android_debloater.py --run                                  # asks at the end
+  python android_debloater.py --restore logs/<backup>.txt --run      # asks after restoring
+  python android_debloater.py --run --disable-adb                    # doesn't ask, reboot by hand
+  python android_debloater.py                                        # dry run: doesn't ask
+  ```
+
+  Answering `y`:
+
+  ```
+  Done. A reboot of the device is recommended.
+
+  Reboot the device now? [y/N] y
+  [OK]   Device is rebooting.
+  ```
+
+  Pressing Enter (default: no):
+
+  ```
+  Done. A reboot of the device is recommended.
+
+  Reboot the device now? [y/N]
+  [INFO] Not rebooting. Reboot the device later so all changes take effect.
+  ```
+
+  With `--disable-adb`:
+
+  ```
+  Done. A reboot of the device is recommended.
+
+  --- Turning off USB debugging ---
+  [SET]  Developer options off
+  [SET]  USB debugging off - the adb connection ends now
+  [INFO] adb can't reach the device anymore, so reboot it by hand.
+  ```
+
+  In an automated job (no interactive terminal):
+
+  ```
+  [INFO] No interactive terminal: not rebooting. Reboot the device by hand.
+  ```
 - Work through the manual recommendations.
 - **Turn off USB debugging and Developer options again** (or use `--disable-adb`).
 
