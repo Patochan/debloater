@@ -126,14 +126,83 @@ export NO_COLOR=1                                        # Linux / macOS / Git B
 
 Packages are removed for the current user only (`pm uninstall -k --user 0`). They stay on the system partition and can be restored. If a package can't be uninstalled, the script disables it instead.
 
-| Profile | Packages |
-|---|---|
-| All devices | `com.google.android.safetycore`, `com.google.android.feedback`, `com.google.mainline.telemetry`, `com.google.android.partnersetup`, `com.facebook.services`, `com.facebook.system`, `com.facebook.appmanager` |
-| Samsung | `com.samsung.android.rubin.app`, `com.samsung.android.dqagent`, `com.samsung.android.app.spage`, `com.samsung.android.mapsagent`, `com.aura.oobe.samsung`, `com.sec.android.diagmonagent` |
-| Samsung (optional) | `com.samsung.android.bixby.agent`, `com.microsoft.appmanager` |
-| Xiaomi | `com.miui.analytics`, `com.miui.msa.global`, `com.miui.daemon` |
+Packages that aren't installed are skipped. In the output, each package is shown with a short label, e.g. `com.samsung.android.rubin.app (Customization Service: usage profiling)`.
 
-Packages that aren't installed are skipped.
+The tables below explain every package the script can remove: what it is, why it's removed, and what stops working afterwards. None of them is needed for calls, messages, the camera, Wi-Fi, mobile data or the Play Store.
+
+**Why a package is removed:**
+- **Telemetry:** sends usage, diagnostic or error data to the manufacturer or Google
+- **Profiling:** builds a profile of how you use the phone, e.g. for personalized content or ads
+- **Ads / bloat:** shows ads or installs promoted apps
+- **Unwanted service:** runs in the background for a feature many people don't use
+- **AI / cloud:** only with `--ai` / `--cloud`, for people who don't want these features at all
+
+#### All devices
+
+| Package | What it is | Why it's removed | What stops working |
+|---|---|---|---|
+| `com.google.android.safetycore` | Android System SafetyCore: classifies images on the device, e.g. for sensitive content warnings | Installed silently by Google in 2025 without asking; scans content on the phone | Sensitive content warnings in Google Messages |
+| `com.google.android.feedback` | Google Feedback: sends crash reports and feedback to Google | Telemetry | "Send feedback" in crash dialogs |
+| `com.google.mainline.telemetry` | Telemetry for Google Play system updates | Telemetry | Nothing noticeable (often only disabled, not removed) |
+| `com.google.android.partnersetup` | Google Partner Setup: passes manufacturer/carrier IDs to Google apps | Used to attribute Google search and app usage to partners | Nothing noticeable |
+| `com.facebook.services` | Facebook Services, preinstalled by the manufacturer | Runs in the background and contacts Facebook even if no Facebook app is used | Nothing; Facebook, Instagram and WhatsApp from the Play Store keep working |
+| `com.facebook.system` | Facebook App Installer | Can install and update Facebook apps outside the Play Store | Same as above |
+| `com.facebook.appmanager` | Facebook App Manager | Background updater and data collection for Facebook apps | Same as above |
+
+#### Samsung
+
+| Package | What it is | Why it's removed | What stops working |
+|---|---|---|---|
+| `com.samsung.android.rubin.app` | Customization Service | Profiling: analyzes app usage, location and habits for personalized content and ads | Personalized suggestions in Samsung apps |
+| `com.samsung.android.dqagent` | Device Quality Agent | Telemetry: collects device quality and usage data for Samsung | Nothing noticeable |
+| `com.samsung.android.app.spage` | Samsung Free (news and game feed left of the home screen) | Ads / bloat | The feed panel on the home screen |
+| `com.samsung.android.mapsagent` | Samsung location agent for location-based suggestions (sparsely documented) | Unwanted service: location-based tracking for suggestions | Location-based suggestions in Samsung apps |
+| `com.aura.oobe.samsung` | AppCloud (by ironSource) | Ads / bloat: installs promoted apps during setup and system updates | Nothing |
+| `com.sec.android.diagmonagent` | DiagMonAgent | Telemetry: sends diagnostic and error reports to Samsung | Automatic error reports to Samsung |
+
+**Optional** (only with `--include-optional`):
+
+| Package | What it is | Why it's removed | What stops working |
+|---|---|---|---|
+| `com.samsung.android.bixby.agent` | Bixby voice assistant | Unwanted service for people who use Google Assistant or no assistant; has broad permissions (location, call log, sensors) | Bixby; set the side key to the power menu |
+| `com.microsoft.appmanager` | Link to Windows (Phone Link) | Has pre-granted access to SMS, contacts, camera and microphone | The connection to Windows PCs (Phone Link) |
+
+#### Xiaomi (MIUI / HyperOS only, skipped on custom ROMs)
+
+| Package | What it is | Why it's removed | What stops working |
+|---|---|---|---|
+| `com.miui.analytics` | MIUI Analytics | Telemetry: sends usage statistics to Xiaomi | Nothing noticeable |
+| `com.miui.msa.global` | MIUI System Ads (MSA) | Ads: shows ads in system apps | Ads in system apps (fewer ads) |
+| `com.miui.daemon` | MiuiDaemon | Telemetry: collects device and usage statistics | Nothing noticeable |
+
+#### AI (only with `--ai`)
+
+| Package | What it is | Why it's removed | What stops working |
+|---|---|---|---|
+| `com.google.android.apps.bard` | Gemini app | AI assistant | Gemini |
+| `com.google.android.aicore` | AICore: runs Google's on-device AI model (Gemini Nano) | AI runtime for other apps | On-device AI features, e.g. summaries and AI replies |
+| `com.google.android.apps.aiwallpapers` | AI wallpaper generator | AI | AI wallpapers |
+| `com.google.android.as` | Android System Intelligence | On-device AI that analyzes screen content, notifications and app usage | Smart text selection, Live Caption, app suggestions, smart replies |
+| `com.google.android.as.oss` | Private Compute Services | Network connection for Android System Intelligence | Nothing without Android System Intelligence |
+| `com.samsung.android.aicore` | Samsung AI Core | AI runtime for Galaxy AI | Galaxy AI features that run on the device |
+| `com.samsung.android.smartsuggestions` | Smart suggestions | AI suggestions based on usage; reads all notifications | App and action suggestions |
+| `com.samsung.android.app.interpreter` | Interpreter | Galaxy AI live translation of conversations | Interpreter |
+| `com.samsung.android.callassistant` | Call Assist / Bixby Text Call | AI that answers and transcribes calls | Call Assist, Text Call |
+| `com.samsung.android.visionintelligence` | Bixby Vision | AI image recognition in camera and gallery | Bixby Vision |
+| `com.samsung.android.bixbyvision.framework` | Bixby Vision framework | Part of Bixby Vision | Same as above |
+| `com.samsung.android.vision.model` | On-device vision AI models | AI models for image features | Some AI image features in Gallery/Camera |
+| `com.samsung.android.bixby.agent` | Bixby voice assistant | AI assistant | Bixby |
+| `com.samsung.android.bixby.wakeup` | "Hi Bixby" voice wake-up | Listens for the wake word | Voice wake-up |
+| `com.samsung.android.bixby.ondevice.*` | Bixby on-device language packs (e.g. `.dede`, `.enus`) | Speech recognition for Bixby | Nothing without Bixby |
+
+#### Cloud (only with `--cloud`, Samsung)
+
+| Package | What it is | Why it's removed | What stops working |
+|---|---|---|---|
+| `com.samsung.android.scloud` | Samsung Cloud | Backup and sync of Samsung data (contacts, calendar, notes, settings) to Samsung's servers | Samsung Cloud backup and sync; the Samsung account itself keeps working |
+| `com.microsoft.skydrive` | OneDrive (preinstalled) | Cloud storage, e.g. for Gallery sync | OneDrive and Gallery sync to OneDrive |
+
+Earlier versions of the script also removed `com.google.android.contactkeys` (Android System Key Verifier) and `com.samsung.android.app.omcagent` (carrier/region app installer). They're no longer removed, but a restore still brings them back.
 
 ### Vendor profiles and custom ROMs
 
