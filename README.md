@@ -44,9 +44,12 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 ### Examples
 
 ```bash
-python android_debloater.py -s R5CY73J5S1Z                           # dry run on one specific device
+python android_debloater.py -s <SERIAL>                              # dry run on one specific device
 python android_debloater.py --run --private-dns dns.quad9.net        # apply + encrypted DNS
 python android_debloater.py --run --disable-agps --include-optional  # apply everything
+
+python android_debloater.py --restore logs/<backup>.txt              # restore: dry run
+python android_debloater.py --restore logs/<backup>.txt --run        # restore: apply
 ```
 
 ## What the script changes
@@ -114,17 +117,68 @@ The file contains device info, every `system`, `secure` and `global` setting, an
 
 ### Restoring
 
+Like the debloat itself, a restore is a dry run unless you add `--run`, and it takes a fresh backup first.
+
+**1. Find the backup to restore.** Backup names include the model and a timestamp, so sorting by name puts the oldest backup of each device first:
+
 ```bash
-python android_debloater.py --restore logs/settings_backup_samsung_SM-S936B_20261115_130405.txt         # dry run
-python android_debloater.py --restore logs/settings_backup_samsung_SM-S936B_20261115_130405.txt --run   # apply
+ls logs/                 # Linux / macOS / Git Bash
+dir logs                 # Windows (cmd / PowerShell)
 ```
+
+To undo the script completely, use the device's **oldest** backup, taken before the first `--run`.
+
+**2. Preview what would change (dry run):**
+
+```bash
+python android_debloater.py --restore logs/settings_backup_samsung_SM-S936B_20261115_130405.txt
+```
+
+```
+[INFO] Backup: settings_backup_samsung_SM-S936B_20261115_130405.txt
+[INFO] Backup device: samsung SM-S936B (serial <SERIAL>)
+[INFO] Scope: only settings managed by the script
+
+--- Restoring settings ---
+[DRY]  system/marketing_info_agree: 0 -> (delete, was not set)
+[DRY]  secure/lock_screen_allow_private_notifications: 0 -> 1
+[DRY]  global/upload_apk_enable: 0 -> 1
+[DRY]  global/wifi_scan_always_enabled: 0 -> 1
+
+--- Restoring packages ---
+[DRY]  com.samsung.android.dqagent would be restored
+[DRY]  com.samsung.android.rubin.app would be restored
+
+Dry run: 4 setting(s), 2 package(s) would be restored. To apply: --run
+```
+
+**3. Apply it:**
+
+```bash
+python android_debloater.py --restore logs/settings_backup_samsung_SM-S936B_20261115_130405.txt --run
+```
+
+**More examples:**
+
+```bash
+# Restore every setting and package that differs from the backup, not only the script's
+python android_debloater.py --restore logs/<backup>.txt --all          # check the dry run first!
+python android_debloater.py --restore logs/<backup>.txt --all --run
+
+# Several devices connected: choose the one to restore
+python android_debloater.py -s <SERIAL> --restore logs/<backup>.txt --run
+
+# Apply a backup from a different device (e.g. same model, new phone)
+python android_debloater.py --restore logs/<backup>.txt --force --run
+```
+
+**How it works:**
 
 - **Default scope:** only the settings and packages the script manages, including keys set by earlier script versions. Keys the script created that weren't in the backup are deleted.
 - **`--all`:** restores every value that differs from the backup. Use it with care: it also includes counters and timestamps the system updates by itself.
 - **Packages** are reinstalled with `pm install-existing` and turned back on with `pm enable`. Backups from older script versions have no package list; for those, only the packages the script manages are restored.
 - A backup from a different device is refused unless you pass `--force`.
-
-To undo the script completely, restore the **oldest** backup of the device, taken before the first `--run`.
+- Settings the system protects can't be written over ADB; they're reported as `[WARN]` and skipped.
 
 ## Adding a vendor
 
