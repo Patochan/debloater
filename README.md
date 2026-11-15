@@ -38,6 +38,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `--disable-agps` | Turn off Assisted GPS, which sends cell tower info to Google. The trade-off is a slower first GPS fix. |
 | `--include-optional` | Also remove optional packages, e.g. Bixby and Link to Windows on Samsung. |
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
+| `--no-color` | Turn off colored output. Colors are also off when `NO_COLOR` is set or the output is redirected to a file or pipe. |
 | `--restore FILE` | Restore settings and packages from a backup file (see [Backup & restore](#backup--restore)). |
 | `--all` | With `--restore`: restore every setting and package that differs from the backup, not only the ones the script manages. |
 | `--force` | With `--restore`: allow a backup taken on a different device. |

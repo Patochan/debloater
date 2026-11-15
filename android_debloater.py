@@ -132,6 +132,80 @@ EXTRA_MANAGED_PACKAGES = [
 ]
 
 # ---------------------------------------------------------------------------
+# Console colors
+# ---------------------------------------------------------------------------
+
+# ANSI color per status tag at the start of a line
+TAG_COLORS = {
+    "OK": "32",                                   # green
+    "DRY": "33",                                  # yellow
+    "SET": "36", "DEL": "36", "DIS": "36",        # cyan: something was changed
+    "ADD": "36", "ENA": "36",
+    "WARN": "38;5;208",                           # orange
+    "ERR": "1;31", "ERROR": "1;31",               # bold red
+    "SKIP": "90", "INFO": "90",                   # gray
+}
+TAG_RE = re.compile(r"^(\s*)\[([A-Z]+)\]")
+SECTION_RE_OUT = re.compile(r"^--- .+ ---$")
+
+
+def enable_windows_ansi() -> bool:
+    """Turn on ANSI escape code support in the Windows console (no-op elsewhere)."""
+    if os.name != "nt":
+        return True
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+        mode = ctypes.c_uint32()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+        return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
+    except (AttributeError, OSError):
+        return False
+
+
+class ColorStream:
+    """Wraps stdout and colors the status tag and section headings of each line."""
+
+    def __init__(self, stream):
+        self._stream = stream
+        self._line_start = True
+
+    def write(self, text: str) -> int:
+        for part in text.splitlines(keepends=True):
+            if self._line_start:
+                part = self._colorize(part)
+            self._stream.write(part)
+            self._line_start = part.endswith("\n")
+        return len(text)
+
+    @staticmethod
+    def _colorize(line: str) -> str:
+        body = line.rstrip("\n")
+        newline = line[len(body):]
+        if SECTION_RE_OUT.match(body):
+            return f"\033[1m{body}\033[0m{newline}"
+        m = TAG_RE.match(body)
+        if m and m.group(2) in TAG_COLORS:
+            indent, tag, rest = m.group(1), body[len(m.group(1)):m.end()], body[m.end():]
+            return f"{indent}\033[{TAG_COLORS[m.group(2)]}m{tag}\033[0m{rest}{newline}"
+        return line
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+
+def setup_colors(disabled: bool) -> None:
+    """Color the output if it goes to a terminal and colors aren't disabled."""
+    if disabled or os.environ.get("NO_COLOR") or not sys.stdout.isatty():
+        return
+    if enable_windows_ansi():
+        sys.stdout = ColorStream(sys.stdout)
+
+
+# ---------------------------------------------------------------------------
 # ADB helpers
 # ---------------------------------------------------------------------------
 
@@ -807,6 +881,9 @@ def main() -> None:
     parser.add_argument("--battery", action="store_true",
                         help="also apply battery runtime settings (mobile data not kept "
                              "connected on Wi-Fi, Adaptive Battery on, no forced peak refresh rate)")
+    parser.add_argument("--no-color", action="store_true",
+                        help="disable colored output (also off when NO_COLOR is set or "
+                             "output is redirected)")
     parser.add_argument("--restore", metavar="FILE",
                         help="restore settings/packages from a backup file")
     parser.add_argument("--all", action="store_true",
@@ -815,6 +892,7 @@ def main() -> None:
     parser.add_argument("--force", action="store_true",
                         help="with --restore: allow a backup from a different device")
     args = parser.parse_args()
+    setup_colors(args.no_color)
     apply = args.run
 
     SERIAL = select_device(args.serial)
