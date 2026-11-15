@@ -24,6 +24,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime
 
 # ---------------------------------------------------------------------------
@@ -630,6 +631,39 @@ def apply_privacy_settings(settings: list[tuple[str, str, str]], apply: bool) ->
                   f"(set {value}, now {now if now is not None else 'not set'})")
 
 
+PRIVATE_DNS_RE = re.compile(
+    r"PrivateDnsServerName: (\S+)(?: ValidatedPrivateDnsAddresses: \[([^\]]*)\])?")
+
+
+def verify_private_dns(host: str, timeout: int = 15) -> None:
+    """Check that Android actually reached the Private DNS provider on a connected network."""
+    print("\n--- Checking Private DNS ---")
+    if get_setting("global", "private_dns_mode") != "hostname" \
+            or get_setting("global", "private_dns_specifier") != host:
+        print(f"[SKIP] Private DNS is not set to {host} yet (use --run to set it)")
+        return
+
+    deadline = time.monotonic() + timeout
+    while True:
+        _, out, _ = run_adb(["shell", "dumpsys", "connectivity"])
+        found = [(name, addrs) for name, addrs in PRIVATE_DNS_RE.findall(out) if name == host]
+        validated = sorted({a.strip() for _, addrs in found for a in addrs.split(",") if a.strip()})
+        if validated:
+            print(f"[OK]   {host} is in use and validated ({', '.join(validated)})")
+            return
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(3)  # validation takes a few seconds after the setting changes
+
+    if not found:
+        print("[WARN] No connected network uses Private DNS right now. "
+              "Connect to Wi-Fi or mobile data and run the script again to check.")
+    else:
+        print(f"[WARN] {host} could not be reached. In this mode DNS lookups fail, so the "
+              "device may have no internet. Check the hostname, or restore a backup "
+              "(--restore) to undo it.")
+
+
 def remove_packages(packages: list[str], installed: set[str], disabled: set[str],
                     apply: bool) -> None:
     print("\n--- Removing packages (--user 0) ---")
@@ -763,9 +797,11 @@ def manual_recommendations(dev: dict[str, str], installed: set[str],
     # Private DNS
     if not private_dns_set and (get_setting("global", "private_dns_mode")
                                 or "opportunistic") != "hostname":
+        path = ("Settings > Connections > More connection settings > Private DNS" if samsung
+                else "Settings > Network & internet > Private DNS")
         tips.append(
             "No fixed Private DNS provider. Set one with --private-dns dns.quad9.net "
-            "or manually: Settings > Connections > More connection settings > Private DNS."
+            f"or manually: {path}."
         )
 
     # USB debugging (necessarily on while the script runs)
@@ -953,6 +989,8 @@ def main() -> None:
     disabled = list_packages("-d")
 
     apply_privacy_settings(settings, apply)
+    if args.private_dns:
+        verify_private_dns(args.private_dns)
     remove_packages(packages, installed, disabled, apply)
 
     print("\n--- Manual recommendations ---")

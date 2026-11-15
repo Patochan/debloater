@@ -34,7 +34,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 |---|---|
 | `--run` | Apply the changes. Without it, the script only does a dry run. |
 | `-s`, `--serial SERIAL` | Choose a device by serial number. Defaults to `ANDROID_SERIAL`. If several devices are connected and none is chosen, the script asks which one to use. |
-| `--private-dns HOST` | Set a fixed Private DNS provider, e.g. `dns.quad9.net`. |
+| `--private-dns HOST` | Set a fixed Private DNS provider, e.g. `dns.quad9.net`. Afterwards the script checks that Android actually reached the provider, and warns if it didn't (in that mode DNS lookups would fail). |
 | `--disable-agps` | Turn off Assisted GPS, which sends cell tower info to Google. The trade-off is a slower first GPS fix. |
 | `--include-optional` | Also remove optional packages, e.g. Bixby and Link to Windows on Samsung. |
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
