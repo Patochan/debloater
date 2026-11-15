@@ -39,6 +39,13 @@ COMMON_SETTINGS = [
     ("global", "network_recommendations_enabled", "0"),
     # Hinweis anzeigen, wenn eine App die Zwischenablage liest
     ("secure", "clipboard_show_access_notifications", "1"),
+    # WLAN nicht automatisch in der Nähe gespeicherter Netze einschalten (nutzt Standortscans)
+    ("global", "wifi_wakeup_enabled", "0"),
+    # Kein "Feedback senden" an Google im App-Absturz-Dialog
+    ("secure", "send_action_app_error", "0"),
+    ("global", "send_action_app_error", "0"),
+    # Fehlerbericht-Verknüpfung im Ein/Aus-Menü abschalten (Berichte enthalten viele Daten)
+    ("global", "bug_report", "0"),
 ]
 
 # Zu entfernende Pakete (--user 0), gültig für alle Geräte
@@ -49,12 +56,19 @@ COMMON_PACKAGES = [
     "com.google.android.feedback",
     "com.google.mainline.telemetry",
     "com.google.android.partnersetup",
+    # Vorinstallierte Facebook-Dienste (laufen auch ohne Facebook-App, u.a. Samsung/Xiaomi)
+    "com.facebook.services",
+    "com.facebook.system",
+    "com.facebook.appmanager",
 ]
 
 # Herstellerspezifische Ergänzungen. Schlüssel = ro.product.manufacturer (klein).
 # "optional_packages" werden nur mit --include-optional entfernt.
+# "marker_packages": Ist keines davon installiert, läuft vermutlich eine Custom-ROM
+# (z.B. LineageOS) und das Herstellerprofil wird übersprungen.
 VENDOR_PROFILES = {
     "samsung": {
+        "marker_packages": ["com.sec.android.app.launcher", "com.samsung.android.honeyboard"],
         "settings": [
             # Samsung Diagnosedaten deaktivieren
             ("system", "samsung_errorlog_agree", "0"),
@@ -75,6 +89,7 @@ VENDOR_PROFILES = {
         ],
     },
     "xiaomi": {
+        "marker_packages": ["com.miui.home", "com.miui.securitycenter"],
         "settings": [],
         "packages": [
             "com.miui.analytics",                  # MIUI Analytics (Telemetrie)
@@ -237,6 +252,8 @@ def detect_device() -> dict[str, str]:
         or "",
         "android": getprop("ro.build.version.release"),
         "sdk": getprop("ro.build.version.sdk"),
+        "security_patch": getprop("ro.build.version.security_patch"),
+        "verified_boot": getprop("ro.boot.verifiedbootstate"),
     }
     vendor = manufacturer.lower()
     info["profile"] = VENDOR_ALIASES.get(vendor, vendor)
@@ -316,10 +333,41 @@ def remove_packages(packages: list[str], installed: set[str], apply: bool) -> No
                 print(f"[ERR]  {pkg} fehlgeschlagen: {err or out or err_dis}")
 
 
-def manual_recommendations(dev: dict[str, str], installed: set[str]) -> list[str]:
+def manual_recommendations(dev: dict[str, str], installed: set[str],
+                           private_dns_set: bool) -> list[str]:
     """Prüft Punkte, die sich nicht (sinnvoll) per ADB setzen lassen."""
     tips: list[str] = []
-    samsung = dev["profile"] == "samsung"
+    samsung = dev["profile"] == "samsung" and not dev["custom_rom"]
+
+    # Sicherheitspatch-Stand
+    try:
+        patch = datetime.strptime(dev["security_patch"], "%Y-%m-%d")
+        age_days = (datetime.now() - patch).days
+        if age_days > 90:
+            tips.append(
+                f"Sicherheitspatch vom {dev['security_patch']} ist {age_days} Tage alt. "
+                "Updates installieren; erhält das Gerät keine mehr, nicht mehr für "
+                "sensible Daten (Banking, Passwörter) nutzen."
+            )
+    except ValueError:
+        tips.append("Sicherheitspatch-Stand konnte nicht ermittelt werden; manuell prüfen.")
+
+    # Entsperrter Bootloader
+    if dev["verified_boot"] == "orange":
+        tips.append(
+            "Bootloader ist entsperrt (Verified Boot: orange). Wer das Gerät in die Hände "
+            "bekommt, kann Software aufspielen. Starke PIN/Passwort verwenden und "
+            "das Gerät nicht unbeaufsichtigt lassen."
+        )
+
+    # Bildschirm-Timeout
+    timeout = get_setting("system", "screen_off_timeout")
+    if timeout and timeout.isdigit() and int(timeout) > 120000:
+        tips.append(
+            f"Bildschirm-Timeout ist {int(timeout) // 60000} Minuten; so lange bleibt das "
+            "Gerät entsperrt und lesbar. Auf 2 Minuten oder weniger stellen: "
+            "Einstellungen > Display > Bildschirm-Timeout."
+        )
 
     # Gerätename wird per Bluetooth/Hotspot/Quick Share in der Umgebung sichtbar
     names = {n for n in (get_setting("global", "device_name"),
@@ -356,7 +404,8 @@ def manual_recommendations(dev: dict[str, str], installed: set[str]) -> list[str
         )
 
     # Samsung Find My Mobile / SmartThings Find: Offline-Standort verschlüsseln
-    if samsung and get_setting("secure", "offline_finding_e2e") == "0":
+    if (samsung and get_setting("secure", "fmm_offline_find_support") == "Y"
+            and get_setting("secure", "offline_finding_e2e") == "0"):
         tips.append(
             "Offline-Finden ist aktiv, aber der Offline-Standort scheint nicht "
             "verschlüsselt zu sein. Aktivieren: Einstellungen > Sicherheit > Mobilgerät "
@@ -384,7 +433,8 @@ def manual_recommendations(dev: dict[str, str], installed: set[str]) -> list[str
         )
 
     # Private DNS
-    if (get_setting("global", "private_dns_mode") or "opportunistic") != "hostname":
+    if not private_dns_set and (get_setting("global", "private_dns_mode")
+                                or "opportunistic") != "hostname":
         tips.append(
             "Kein fester Private-DNS-Anbieter. Mit --private-dns dns.quad9.net setzen "
             "oder manuell: Einstellungen > Verbindungen > Weitere > Privates DNS."
@@ -431,12 +481,23 @@ def main() -> None:
     if not apply:
         print("[INFO] DRY-RUN: es wird nichts verändert. Mit --run anwenden.")
 
+    backup_settings(dev)
+    installed = get_installed_packages()
+
+    empty_profile = {"settings": [], "packages": [], "optional_packages": []}
     profile = VENDOR_PROFILES.get(dev["profile"])
-    if profile:
+    dev["custom_rom"] = bool(
+        profile and not any(p in installed for p in profile.get("marker_packages", []))
+    )
+    if dev["custom_rom"]:
+        print(f"[INFO] Keine {dev['manufacturer']}-Systemapps gefunden: vermutlich Custom-ROM. "
+              "Herstellerprofil übersprungen, nur allgemeine Regeln.")
+        profile = empty_profile
+    elif profile:
         print(f"[INFO] Herstellerprofil: {dev['profile']}")
     else:
         print(f"[INFO] Kein Herstellerprofil für '{dev['manufacturer']}', nur allgemeine Regeln.")
-        profile = {"settings": [], "packages": [], "optional_packages": []}
+        profile = empty_profile
 
     settings = COMMON_SETTINGS + profile["settings"]
     if args.private_dns:
@@ -449,13 +510,12 @@ def main() -> None:
     if args.include_optional:
         packages += profile.get("optional_packages", [])
 
-    backup_settings(dev)
-    installed = get_installed_packages()
     apply_privacy_settings(settings, apply)
     remove_packages(packages, installed, apply)
 
     print("\n--- Manuelle Empfehlungen ---")
-    for i, tip in enumerate(manual_recommendations(dev, installed), 1):
+    tips = manual_recommendations(dev, installed, bool(args.private_dns))
+    for i, tip in enumerate(tips, 1):
         print(f"  {i}. {tip}")
 
     if apply:
