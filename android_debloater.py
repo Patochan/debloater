@@ -726,7 +726,7 @@ def restore_backup(path: str, apply: bool, restore_all: bool, force: bool) -> No
         print(f"\nDry run: {changed} setting(s), {pkg_changes} package(s) would be "
               "restored. To apply: --run")
     else:
-        print(f"\nRestore finished ({failed} error(s)). A reboot is recommended.")
+        print(f"\nRestore finished ({failed} error(s)). A reboot of the device is recommended.")
 
 
 def apply_privacy_settings(settings: list[tuple[str, str, str]], apply: bool) -> None:
@@ -792,6 +792,26 @@ def revoke_notification_access(packages: list[str], apply: bool) -> None:
                 print(f"[SET]  {pkg}: notification access revoked")
             else:
                 print(f"[WARN] {pkg}: could not revoke notification access {msg}")
+
+
+def ask_reboot() -> None:
+    """Ask whether to reboot the device (default: no) and reboot it via adb."""
+    if not sys.stdin.isatty():
+        print("[INFO] No interactive terminal: not rebooting. Reboot the device by hand.")
+        return
+    try:
+        answer = input("\nReboot the device now? [y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        answer = ""
+        print()
+    if answer not in ("y", "yes"):
+        print("[INFO] Not rebooting. Reboot the device later so all changes take effect.")
+        return
+    code, out, err = run_adb(["reboot"])
+    if code == 0:
+        print("[OK]   Device is rebooting.")
+    else:
+        print(f"[WARN] Reboot failed: {err or out}. Reboot the device by hand.")
 
 
 def disable_adb() -> None:
@@ -1238,6 +1258,8 @@ def main() -> None:
 
     if args.restore:
         restore_backup(args.restore, apply, args.all, args.force)
+        if apply:
+            ask_reboot()
         return
 
     installed = get_installed_packages()
@@ -1327,6 +1349,9 @@ def main() -> None:
         print("\nDone. A reboot of the device is recommended.")
         if args.disable_adb:
             disable_adb()
+            print("[INFO] adb can't reach the device anymore, so reboot it by hand.")
+        else:
+            ask_reboot()
     else:
         if args.disable_adb:
             print("\n[DRY]  USB debugging and Developer options would be turned off at the end")

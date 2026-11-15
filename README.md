@@ -500,9 +500,15 @@ Brands that share an entry go in `VENDOR_ALIASES`, e.g. `"redmi": "xiaomi"`.
 
 ## After running
 
-- Restart the device.
+- **Restart the device.** After a `--run` or a restore with `--run`, the script asks:
+
+  ```
+  Reboot the device now? [y/N]
+  ```
+
+  Enter `y` to reboot it with `adb reboot`. Just pressing Enter (the default) or any other answer skips it. The question isn't asked in a dry run, when the script can't read input from an interactive terminal (e.g. in an automated job), or with `--disable-adb` (adb can't reach the device anymore then, so reboot it by hand).
 - Work through the manual recommendations.
-- **Turn off USB debugging and Developer options again.**
+- **Turn off USB debugging and Developer options again** (or use `--disable-adb`).
 
 ## Disclaimer
 
