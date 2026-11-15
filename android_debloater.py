@@ -540,14 +540,20 @@ def apply_privacy_settings(settings: list[tuple[str, str, str]], apply: bool) ->
             print(f"[WARN] Could not set {namespace}/{key}: {err}")
 
 
-def remove_packages(packages: list[str], installed: set[str], apply: bool) -> None:
+def remove_packages(packages: list[str], installed: set[str], disabled: set[str],
+                    apply: bool) -> None:
     print("\n--- Removing packages (--user 0) ---")
     for pkg in packages:
         if pkg not in installed:
             print(f"[SKIP] {pkg} (not installed)")
             continue
+        if pkg in disabled:
+            # Disabled packages are still listed as installed; uninstalling was
+            # already refused on an earlier run, so there is nothing left to do.
+            print(f"[OK]   {pkg} (already disabled)")
+            continue
         if not apply:
-            print(f"[DRY]  {pkg} would be removed")
+            print(f"[DRY]  {pkg} would be removed/disabled")
             continue
 
         code, out, err = run_adb(["shell", "pm", "uninstall", "-k", "--user", "0", pkg])
@@ -559,6 +565,7 @@ def remove_packages(packages: list[str], installed: set[str], apply: bool) -> No
             code_dis, _, err_dis = run_adb(["shell", "pm", "disable-user", "--user", "0", pkg])
             if code_dis == 0:
                 print(f"[DIS]  {pkg} disabled (uninstall not allowed)")
+                disabled.add(pkg)
             else:
                 print(f"[ERR]  {pkg} failed: {err or out or err_dis}")
 
@@ -753,11 +760,14 @@ def main() -> None:
     if args.include_optional:
         packages += profile.get("optional_packages", [])
 
+    disabled = list_packages("-d")
+
     apply_privacy_settings(settings, apply)
-    remove_packages(packages, installed, apply)
+    remove_packages(packages, installed, disabled, apply)
 
     print("\n--- Manual recommendations ---")
-    tips = manual_recommendations(dev, installed, bool(args.private_dns))
+    # Disabled packages don't run, so they don't need a "still installed" tip
+    tips = manual_recommendations(dev, installed - disabled, bool(args.private_dns))
     for i, tip in enumerate(tips, 1):
         print(f"  {i}. {tip}")
 
