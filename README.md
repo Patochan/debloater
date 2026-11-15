@@ -47,7 +47,10 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 ```bash
 python android_debloater.py -s <SERIAL>                              # dry run on one specific device
 python android_debloater.py --run --private-dns dns.quad9.net        # apply + encrypted DNS
-python android_debloater.py --run --disable-agps --include-optional  # apply everything
+python android_debloater.py --run --disable-agps --include-optional  # apply all privacy options
+
+python android_debloater.py --battery                                # dry run incl. battery settings
+python android_debloater.py --run --battery                          # apply privacy + battery settings
 
 python android_debloater.py --restore logs/<backup>.txt              # restore: dry run
 python android_debloater.py --restore logs/<backup>.txt --run        # restore: apply
@@ -116,6 +119,26 @@ Some changes can't, or shouldn't, be made over ADB. At the end of each run, the 
 | `global/adaptive_battery_management_enabled` | 1 | Adaptive Battery: limit background activity of rarely used apps |
 | `system/min_refresh_rate` | 60.0 | Only changed if the screen is forced to its peak refresh rate (e.g. 120 Hz) all the time |
 
+The battery settings are applied together with the privacy settings:
+
+```bash
+python android_debloater.py --battery                                # dry run: show what would change
+python android_debloater.py --run --battery                          # apply
+python android_debloater.py --run --battery --private-dns dns.quad9.net --include-optional   # everything
+```
+
+Example dry run on a tablet whose screen was forced to 120 Hz:
+
+```
+--- Privacy settings ---
+...
+[DRY]  global/mobile_data_always_on: 1 -> 0
+[DRY]  global/adaptive_battery_management_enabled: not set -> 1
+[DRY]  system/min_refresh_rate: 120.0 -> 60.0
+```
+
+Settings that already have the right value are shown as `[OK] ... (already set)`, so on many devices `--battery` changes only one or two settings, or none.
+
 ### Battery recommendations
 
 Every run also checks battery lifespan and runtime and lists what applies to the device:
@@ -133,6 +156,19 @@ Every run also checks battery lifespan and runtime and lists what applies to the
   - Mobile data kept connected while on Wi-Fi
   - Adaptive Battery off
   - 5G enabled (drains the battery where coverage is weak)
+
+The recommendations are shown on every run, with or without `--battery`. Example from a Samsung phone:
+
+```
+--- Battery recommendations ---
+  1. Battery protection is off, so the battery sits at 100% for hours. Turn it on (biggest lifespan gain): Settings > Battery > Battery protection > Maximum (limit 80-85%).
+  2. Fast wireless charging is on. Wireless charging already produces a lot of heat; turning this off reduces battery wear: Settings > Battery > Charging settings.
+  3. Wired fast charging is on. If you charge overnight or have time, turning it off means less heat and less wear: Settings > Battery > Charging settings.
+  4. Motion smoothness is set to adaptive/high (up to 120 Hz). Standard (60 Hz) saves noticeable battery: Settings > Display > Motion smoothness > Standard.
+  5. 5G is enabled. Where 5G coverage is weak, the modem keeps searching and drains the battery; switching to LTE/4G helps: Settings > Connections > Mobile networks > Network mode.
+```
+
+To undo the battery settings, restore an earlier backup (see [Restoring](#restoring)); the battery settings are part of the default restore scope.
 
 Charge limits are not set automatically: the values of Samsung's `protect_battery` differ between One UI versions, and a wrong value could switch on the wrong mode.
 
