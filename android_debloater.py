@@ -747,7 +747,7 @@ def battery_recommendations(dev: dict[str, str], battery_flag: bool) -> list[str
             "Allowing 60 Hz saves a lot of battery: use --battery, or turn off "
             "Developer options > Force peak refresh rate."
         )
-    # refresh_rate_mode: 0 = Standard (60 Hz), 2 = Adaptive (verified on One UI 8/9)
+    # refresh_rate_mode: 0 = Standard (60 Hz), 2 = Adaptive (verified on Galaxy S21 FE and S25+)
     if samsung and (get_setting("secure", "refresh_rate_mode") or "0") != "0":
         tips.append(
             "Motion smoothness is set to adaptive/high (up to 120 Hz). Standard (60 Hz) saves "
