@@ -60,6 +60,9 @@ python android_debloater.py --run --screen-timeout 60 --revoke-notifications com
 python android_debloater.py --battery                                # dry run incl. battery settings
 python android_debloater.py --run --battery                          # apply privacy + battery settings
 
+python android_debloater.py --ai --cloud                             # dry run: list AI and cloud features
+python android_debloater.py --run --ai --cloud                       # turn off AI and cloud features
+
 python android_debloater.py --restore logs/<backup>.txt              # restore: dry run
 python android_debloater.py --restore logs/<backup>.txt --run        # restore: apply
 ```
@@ -157,11 +160,38 @@ Some changes can't, or shouldn't, be made over ADB. At the end of each run, the 
 
 AI and cloud features are **only checked and changed when you ask for it** with `--ai` and/or `--cloud`. Without these flags, the script doesn't touch them.
 
+### Typical workflow
+
+**1. Check what's enabled (dry run, nothing changes):**
+
 ```bash
-python android_debloater.py --ai --cloud               # dry run: show AI/cloud features and what would change
-python android_debloater.py --run --ai                 # turn off AI features
-python android_debloater.py --run --cloud              # turn off cloud features
+python android_debloater.py --ai --cloud
+```
+
+**2. Turn off only what the client doesn't want:**
+
+```bash
+python android_debloater.py --run --ai                 # AI features only
+python android_debloater.py --run --cloud              # cloud features only
 python android_debloater.py --run --ai --cloud         # both
+```
+
+**3. Combine with the other options, e.g. for a client who wants no AI, no cloud and maximum privacy:**
+
+```bash
+python android_debloater.py --run --ai --cloud --include-optional --private-dns dns.quad9.net --disable-adb
+```
+
+**4. Several phones connected:** run it once per phone with `-s`:
+
+```bash
+python android_debloater.py -s <SERIAL> --run --ai --cloud
+```
+
+**5. Undo:** restore the backup taken before the run (see [Restoring](#restoring)). This also brings back removed AI/cloud apps and turns Google backup on again:
+
+```bash
+python android_debloater.py --restore logs/<backup>.txt --run
 ```
 
 ### Changed with `--ai`
@@ -193,24 +223,57 @@ Some AI and cloud features can't be changed reliably via ADB, or belong to apps 
 
 Apps the user installed themselves (e.g. ChatGPT, Google Photos) are **never removed** automatically.
 
-Example (`--ai --cloud`, dry run on a Samsung phone):
+### Example output
+
+Dry run with `--ai --cloud` on a Samsung Galaxy S21 FE (privacy settings already applied earlier; unchanged lines shortened). Packages marked `already disabled` had been turned off by hand before:
 
 ```
---- Removing packages (--user 0) ---
-[DRY]  com.google.android.as would be removed/disabled
-[DRY]  com.samsung.android.smartsuggestions would be removed/disabled
-[DRY]  com.samsung.android.scloud would be removed/disabled
+--- Privacy settings ---
 ...
+[DRY]  global/smart_replies_enabled: 1 -> 0
+[DRY]  secure/assist_structure_enabled: not set -> 0
+[DRY]  secure/assist_screenshot_enabled: not set -> 0
+[DRY]  secure/assist_long_press_home_enabled: not set -> 0
+[DRY]  secure/assist_touch_gesture_enabled: not set -> 0
+[DRY]  secure/backup_auto_restore: not set -> 0
+[OK]   system/mcf_continuity = 0 (already set)
+[OK]   secure/ltw_clipboard_sync_state = 0 (already set)
+[OK]   secure/samsungflow_clipboard_sync_state = 0 (already set)
+
+--- Google backup ---
+[OK]   Google backup is off (already set)
+
+--- Removing packages (--user 0) ---
+...
+[OK]   com.google.android.apps.bard (already disabled)
+[SKIP] com.google.android.aicore (not installed)
+[DRY]  com.google.android.as would be removed/disabled
+[DRY]  com.google.android.as.oss would be removed/disabled
+[DRY]  com.samsung.android.smartsuggestions would be removed/disabled
+[DRY]  com.samsung.android.callassistant would be removed/disabled
+[DRY]  com.samsung.android.visionintelligence would be removed/disabled
+[DRY]  com.samsung.android.bixbyvision.framework would be removed/disabled
+[OK]   com.samsung.android.bixby.agent (already disabled)
+[DRY]  com.samsung.android.bixby.wakeup would be removed/disabled
+[DRY]  com.samsung.android.scloud would be removed/disabled
+[OK]   com.microsoft.skydrive (already disabled)
 
 --- AI recommendations ---
   1. Default digital assistant is com.google.android.googlequicksearchbox (Google Assistant/Gemini). If AI assistants aren't wanted, set it to None: Settings > Apps > Choose default apps > Digital assistant app.
-  2. Galaxy AI: turn on 'Process data only on device' ...
+  2. Galaxy AI: turn on 'Process data only on device' so no data goes to Samsung/Google AI servers, and turn off the features you don't use: Settings > Galaxy AI (older One UI: Settings > Advanced features > Advanced intelligence).
+  3. Circle to Search (Google AI search): turn it off if unused: Settings > Display > Navigation bar > Circle to Search.
 
 --- Cloud recommendations ---
-  1. Auto-sync is on (2 account type(s): com.google, nextcloud): contacts, calendars, mail etc. are synced to the cloud. ...
+  1. Auto-sync is on (2 account type(s): com.google, nextcloud): contacts, calendars, mail etc. are synced to the cloud. Turn it off if not needed (mail then no longer arrives automatically): Settings > Accounts and backup > Manage accounts > Auto sync data.
+  2. Cloud storage apps installed: Google Photos, Google Drive, Nextcloud. Check their backup/sync settings (e.g. Google Photos > Settings > Backup) or uninstall them if unwanted.
+  3. Samsung Pass is installed; it stores passwords and passkeys in the Samsung account cloud. If it isn't used: Settings > Security and privacy > Samsung Pass.
 ```
 
-Everything is undone by a normal restore (see [Restoring](#restoring)), including Google backup.
+On a phone with a user-installed AI app, the AI recommendations also list it, e.g.:
+
+```
+  4. AI apps installed by the user: ChatGPT. They aren't removed automatically; uninstall them if they aren't wanted.
+```
 
 ## Private DNS
 
