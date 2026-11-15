@@ -6,8 +6,6 @@ A Python script that makes Android phones and tablets more private over ADB, wit
 - **Dry run by default**: nothing changes on the device until you pass `--run`
 - Backs up all settings before every run, and can **restore** from those backups
 
-> The script's console output is in German.
-
 ## Requirements
 
 - **Python 3.10+**
