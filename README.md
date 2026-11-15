@@ -104,7 +104,7 @@ export NO_COLOR=1                                        # Linux / macOS / Git B
 | `global/ble_scan_always_enabled` | 0 | No Bluetooth scanning while Bluetooth is off |
 | `secure/lock_screen_allow_private_notifications` | 0 | Hide notification content on the lock screen |
 | `global/upload_apk_enable` | 0 | Play Protect keeps scanning but no longer uploads unknown APKs to Google |
-| `global/network_recommendations_enabled` | 0 | No Wi-Fi network rating by Google Play Services |
+| `global/network_recommendations_enabled` | -1 | No Wi-Fi network rating by Google Play Services (`-1` = forced off; Android resets `0` back to `1` while Play Services is installed) |
 | `secure/clipboard_show_access_notifications` | 1 | Show a notice when an app reads the clipboard |
 | `global/wifi_wakeup_enabled` | 0 | Don't turn Wi-Fi back on automatically near saved networks |
 | `secure` + `global/send_action_app_error` | 0 | No "Send feedback" to Google in the app crash dialog |

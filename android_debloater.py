@@ -41,8 +41,9 @@ COMMON_SETTINGS = [
     ("secure", "lock_screen_allow_private_notifications", "0"),
     # Play Protect: don't upload unknown APKs to Google (scanning stays on)
     ("global", "upload_apk_enable", "0"),
-    # No Wi-Fi network rating/recommendations by Google Play Services
-    ("global", "network_recommendations_enabled", "0"),
+    # No Wi-Fi network rating/recommendations by Google Play Services.
+    # -1 = forced off; with 0 the system turns it back on while a provider (GMS) exists.
+    ("global", "network_recommendations_enabled", "-1"),
     # Show a notice when an app reads the clipboard
     ("secure", "clipboard_show_access_notifications", "1"),
     # Don't turn Wi-Fi on automatically near saved networks (uses location scans)
@@ -617,10 +618,16 @@ def apply_privacy_settings(settings: list[tuple[str, str, str]], apply: bool) ->
             print(f"[DRY]  {change}")
             continue
         code, _, err = run_adb(["shell", "settings", "put", namespace, key, value])
-        if code == 0:
+        if code != 0:
+            print(f"[WARN] Could not set {namespace}/{key}: {err}")
+            continue
+        # Read back: some settings are silently reset by the system
+        now = get_setting(namespace, key)
+        if now == value:
             print(f"[SET]  {change}")
         else:
-            print(f"[WARN] Could not set {namespace}/{key}: {err}")
+            print(f"[WARN] {namespace}/{key} was reset by the system "
+                  f"(set {value}, now {now if now is not None else 'not set'})")
 
 
 def remove_packages(packages: list[str], installed: set[str], disabled: set[str],
