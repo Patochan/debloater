@@ -57,6 +57,42 @@ python android_debloater.py --restore logs/<backup>.txt              # restore: 
 python android_debloater.py --restore logs/<backup>.txt --run        # restore: apply
 ```
 
+## Output
+
+Every line starts with a status tag. In a terminal, the tags and the `--- section ---` headings are colored:
+
+| Tag | Color | Meaning |
+|---|---|---|
+| `[OK]` | 🟢 green | Already in the desired state, nothing to do |
+| `[DRY]` | 🟡 yellow | Would be changed (dry run) |
+| `[SET]` | 🔵 cyan | Setting changed |
+| `[DEL]` | 🔵 cyan | Package removed |
+| `[DIS]` | 🔵 cyan | Package disabled (uninstall not allowed) |
+| `[ADD]` | 🔵 cyan | Package restored |
+| `[ENA]` | 🔵 cyan | Package enabled again |
+| `[WARN]` | 🟠 orange | Something couldn't be changed; the script continues |
+| `[ERR]`, `[ERROR]` | 🔴 bold red | Failed; `[ERROR]` stops the script |
+| `[SKIP]` | ⚪ gray | Package not installed |
+| `[INFO]` | ⚪ gray | Information |
+
+Colors work in Windows Terminal, PowerShell 7, Windows PowerShell 5.1 and Linux/macOS terminals. They are turned off automatically when the output is redirected, so log files contain plain text:
+
+```bash
+python android_debloater.py --no-color                  # turn colors off for one run
+python android_debloater.py > dry-run.txt               # redirected: plain text, no colors
+```
+
+To turn colors off permanently, set the `NO_COLOR` environment variable:
+
+```powershell
+$env:NO_COLOR = "1"                                      # PowerShell, current session
+[Environment]::SetEnvironmentVariable("NO_COLOR", "1", "User")   # PowerShell, permanent
+```
+
+```bash
+export NO_COLOR=1                                        # Linux / macOS / Git Bash
+```
+
 ## What the script changes
 
 ### Settings (all devices)
