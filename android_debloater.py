@@ -11,10 +11,16 @@ Aufruf:
     python android_debloater.py -s SERIAL             # bestimmtes Gerät
     python android_debloater.py --run --private-dns dns.quad9.net
     python android_debloater.py --run --disable-agps --include-optional
+
+Wiederherstellen aus einem Backup (ebenfalls standardmäßig Dry-Run):
+    python android_debloater.py --restore logs/settings_backup_....txt
+    python android_debloater.py --restore logs/settings_backup_....txt --run
+    python android_debloater.py --restore logs/settings_backup_....txt --all --run
 """
 import argparse
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -102,6 +108,20 @@ VENDOR_PROFILES = {
 # Alias-Hersteller, die dasselbe Profil nutzen
 VENDOR_ALIASES = {"redmi": "xiaomi", "poco": "xiaomi"}
 
+# Für --restore: Einstellungen/Pakete, die frühere Versionen oder Optionen des
+# Skripts verändert haben, zusätzlich zu den Listen oben.
+EXTRA_MANAGED_SETTINGS = [
+    ("global", "private_dns_mode"),
+    ("global", "private_dns_specifier"),
+    ("global", "assisted_gps_enabled"),
+    ("secure", "limit_ad_tracking"),
+    ("system", "marketing_info_agree"),
+]
+EXTRA_MANAGED_PACKAGES = [
+    "com.google.android.contactkeys",
+    "com.samsung.android.app.omcagent",
+]
+
 # ---------------------------------------------------------------------------
 # ADB-Hilfsfunktionen
 # ---------------------------------------------------------------------------
@@ -182,12 +202,17 @@ def get_setting(namespace: str, key: str) -> str | None:
     return out
 
 
-def get_installed_packages() -> set[str]:
-    code, out, err = run_adb(["shell", "pm", "list", "packages"])
-    if code != 0 or not out:
+def list_packages(*flags: str) -> set[str]:
+    """pm list packages [flags]; z.B. -u (inkl. für den Nutzer deinstallierte), -d (deaktiviert)."""
+    code, out, err = run_adb(["shell", "pm", "list", "packages", *flags])
+    if code != 0 or (not out and not flags):
         print(f"[FEHLER] Paketliste konnte nicht gelesen werden: {err}")
         sys.exit(1)
-    return {line.replace("package:", "").strip() for line in out.splitlines()}
+    return {line.replace("package:", "").strip() for line in out.splitlines() if line.strip()}
+
+
+def get_installed_packages() -> set[str]:
+    return list_packages()
 
 
 # ---------------------------------------------------------------------------
@@ -289,7 +314,211 @@ def backup_settings(dev: dict[str, str]) -> None:
                 print(f"[FEHLER] Backup von '{namespace}' fehlgeschlagen: {err}")
                 sys.exit(1)
             f.write(f"=== NAMESPACE: {namespace} ===\n{out}\n\n")
+        f.write("=== PACKAGES: installed ===\n")
+        f.write("\n".join(sorted(list_packages())) + "\n\n")
+        f.write("=== PACKAGES: disabled ===\n")
+        f.write("\n".join(sorted(list_packages("-d"))) + "\n\n")
     print(f"[OK] Backup der aktuellen Settings gespeichert in: {filename}")
+
+
+# ---------------------------------------------------------------------------
+# Wiederherstellung
+# ---------------------------------------------------------------------------
+
+SECTION_RE = re.compile(r"^=== (.+) ===$")
+SETTING_RE = re.compile(r"^([A-Za-z0-9_.:\-]+)=(.*)$")
+
+
+def parse_settings_lines(lines: list[str]) -> dict[str, str | None]:
+    """Parst 'key=value'-Zeilen; Zeilen ohne Key gehören zum Wert davor (mehrzeilig)."""
+    result: dict[str, str | None] = {}
+    last = None
+    for line in lines:
+        m = SETTING_RE.match(line)
+        if m:
+            last = m.group(1)
+            result[last] = m.group(2)
+        elif last is not None and result[last] is not None:
+            result[last] += "\n" + line
+    # "null" bedeutet: Einstellung existiert, hat aber keinen Wert
+    return {k: (None if v == "null" else v) for k, v in result.items()}
+
+
+def parse_backup(path: str):
+    """Liest eine Backup-Datei: (Geräteinfo, {namespace: settings}, Pakete oder None)."""
+    with open(path, encoding="utf-8") as f:
+        lines = f.read().splitlines()
+
+    sections: dict[str, list[str]] = {}
+    current = None
+    for line in lines:
+        m = SECTION_RE.match(line)
+        if m:
+            current = m.group(1)
+            sections[current] = []
+        elif current is not None:
+            sections[current].append(line)
+
+    device = {}
+    for line in sections.get("GERÄT", []):
+        if ": " in line:
+            k, v = line.split(": ", 1)
+            device[k] = v
+
+    settings = {}
+    for ns in ("system", "secure", "global"):
+        body = sections.get(f"NAMESPACE: {ns}", [])
+        while body and not body[-1]:  # Leerzeilen zwischen Abschnitten entfernen
+            body.pop()
+        settings[ns] = parse_settings_lines(body)
+
+    packages = None
+    if "PACKAGES: installed" in sections:
+        packages = {
+            "installed": {p for p in sections["PACKAGES: installed"] if p.strip()},
+            "disabled": {p for p in sections.get("PACKAGES: disabled", []) if p.strip()},
+        }
+    return device, settings, packages
+
+
+def managed_settings() -> set[tuple[str, str]]:
+    keys = {(ns, k) for ns, k, _ in COMMON_SETTINGS}
+    for profile in VENDOR_PROFILES.values():
+        keys |= {(ns, k) for ns, k, _ in profile["settings"]}
+    return keys | set(EXTRA_MANAGED_SETTINGS)
+
+
+def managed_packages() -> set[str]:
+    pkgs = set(COMMON_PACKAGES) | set(EXTRA_MANAGED_PACKAGES)
+    for profile in VENDOR_PROFILES.values():
+        pkgs |= set(profile["packages"]) | set(profile.get("optional_packages", []))
+    return pkgs
+
+
+def short(value: str | None, limit: int = 70) -> str:
+    if value is None:
+        return "nicht gesetzt"
+    value = value.replace("\n", "\\n")
+    return value if len(value) <= limit else value[:limit] + "..."
+
+
+def restore_backup(path: str, apply: bool, restore_all: bool, force: bool) -> None:
+    if not os.path.isfile(path):
+        print(f"[FEHLER] Backup-Datei nicht gefunden: {path}")
+        sys.exit(1)
+    device, backup, backup_pkgs = parse_backup(path)
+
+    serial = device.get("serial", "")
+    print(f"\n[INFO] Backup: {os.path.basename(path)}")
+    print(f"[INFO] Backup-Gerät: {device.get('manufacturer', '?')} {device.get('model', '?')} "
+          f"(Serial {serial or '?'})")
+    if serial and serial != SERIAL and not force:
+        print(f"[FEHLER] Backup stammt von einem anderen Gerät ({serial}, verbunden: {SERIAL}).")
+        print("  Mit --force trotzdem wiederherstellen.")
+        sys.exit(1)
+    mode = "ALLE Einstellungen" if restore_all else "nur vom Skript verwaltete Einstellungen"
+    print(f"[INFO] Umfang: {mode}")
+
+    # --- Einstellungen ---
+    print("\n--- Einstellungen wiederherstellen ---")
+    managed = managed_settings()
+    changed = failed = 0
+    for ns in ("system", "secure", "global"):
+        code, out, err = run_adb(["shell", "settings", "list", ns])
+        if code != 0:
+            print(f"[FEHLER] Aktuelle Einstellungen ({ns}) nicht lesbar: {err}")
+            sys.exit(1)
+        current = parse_settings_lines(out.splitlines())
+        old = backup[ns]
+
+        if restore_all:
+            keys = set(old) | {k for (n, k) in managed if n == ns}
+        else:
+            keys = {k for (n, k) in managed if n == ns}
+
+        for key in sorted(keys):
+            in_backup = key in old and old[key] is not None
+            target = old.get(key)
+            now = current.get(key)
+            if in_backup and target == now:
+                continue
+            if not in_backup:
+                # Nur Keys löschen, die das Skript selbst angelegt haben könnte
+                if now is None or (ns, key) not in managed:
+                    continue
+                desc = f"{ns}/{key}: {short(now)} -> (löschen, war nicht gesetzt)"
+                cmd = f"settings delete {ns} {shlex.quote(key)}"
+            else:
+                desc = f"{ns}/{key}: {short(now)} -> {short(target)}"
+                cmd = f"settings put {ns} {shlex.quote(key)} {shlex.quote(target)}"
+
+            changed += 1
+            if not apply:
+                print(f"[DRY]  {desc}")
+                continue
+            code, _, err = run_adb(["shell", cmd])
+            if code == 0 and not err:
+                print(f"[SET]  {desc}")
+            else:
+                failed += 1
+                print(f"[WARN] {ns}/{key} nicht wiederherstellbar: {err}")
+
+    if changed == 0:
+        print("[OK]   Alle Einstellungen entsprechen bereits dem Backup.")
+
+    # --- Pakete ---
+    print("\n--- Pakete wiederherstellen ---")
+    installed = list_packages()
+    on_system = list_packages("-u")      # inkl. für Nutzer 0 deinstallierter Systempakete
+    disabled = list_packages("-d")
+
+    if backup_pkgs is None:
+        print("[INFO] Backup enthält keine Paketliste (ältere Version); "
+              "prüfe die vom Skript verwalteten Pakete.")
+        candidates = managed_packages()
+        was_disabled: set[str] = set()
+    else:
+        candidates = backup_pkgs["installed"] if restore_all else (
+            backup_pkgs["installed"] & managed_packages())
+        was_disabled = backup_pkgs["disabled"]
+
+    pkg_changes = 0
+    for pkg in sorted(candidates):
+        if pkg not in installed:
+            if pkg not in on_system:
+                if backup_pkgs is not None:
+                    print(f"[SKIP] {pkg} nicht mehr auf dem Gerät (aus Play Store neu installieren)")
+                continue
+            pkg_changes += 1
+            if not apply:
+                print(f"[DRY]  {pkg} würde wiederhergestellt")
+                continue
+            code, out, err = run_adb(["shell", "pm", "install-existing", "--user", "0", pkg])
+            if code == 0 and "installed" in out.lower():
+                print(f"[ADD]  {pkg} wiederhergestellt")
+            else:
+                failed += 1
+                print(f"[ERR]  {pkg}: {err or out}")
+        elif pkg in disabled and pkg not in was_disabled:
+            pkg_changes += 1
+            if not apply:
+                print(f"[DRY]  {pkg} würde aktiviert")
+                continue
+            code, out, err = run_adb(["shell", "pm", "enable", "--user", "0", pkg])
+            if code == 0:
+                print(f"[ENA]  {pkg} aktiviert")
+            else:
+                failed += 1
+                print(f"[ERR]  {pkg}: {err or out}")
+
+    if pkg_changes == 0:
+        print("[OK]   Keine Pakete wiederherzustellen.")
+
+    if not apply:
+        print(f"\nDry-Run: {changed} Einstellung(en), {pkg_changes} Paket(e) würden "
+              "wiederhergestellt. Zum Anwenden: --run")
+    else:
+        print(f"\nWiederherstellung beendet ({failed} Fehler). Neustart empfohlen.")
 
 
 def apply_privacy_settings(settings: list[tuple[str, str, str]], apply: bool) -> None:
@@ -469,6 +698,13 @@ def main() -> None:
                              "erster GPS-Fix wird langsamer)")
     parser.add_argument("--include-optional", action="store_true",
                         help="Auch optionale Pakete entfernen (z.B. Bixby, Link zu Windows)")
+    parser.add_argument("--restore", metavar="DATEI",
+                        help="Einstellungen/Pakete aus einer Backup-Datei wiederherstellen")
+    parser.add_argument("--all", action="store_true",
+                        help="Mit --restore: alle abweichenden Einstellungen und Pakete "
+                             "wiederherstellen, nicht nur die vom Skript verwalteten")
+    parser.add_argument("--force", action="store_true",
+                        help="Mit --restore: auch Backups eines anderen Geräts zulassen")
     args = parser.parse_args()
     apply = args.run
 
@@ -482,6 +718,11 @@ def main() -> None:
         print("[INFO] DRY-RUN: es wird nichts verändert. Mit --run anwenden.")
 
     backup_settings(dev)
+
+    if args.restore:
+        restore_backup(args.restore, apply, args.all, args.force)
+        return
+
     installed = get_installed_packages()
 
     empty_profile = {"settings": [], "packages": [], "optional_packages": []}
