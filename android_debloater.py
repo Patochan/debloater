@@ -3,11 +3,14 @@
 
 Erkennt Hersteller/Modell des verbundenen Geräts und wendet allgemeine
 (Google/AOSP) sowie herstellerspezifische Einstellungen und Paketlisten an.
+Standardmäßig läuft das Skript als Dry-Run und verändert nichts.
 
 Aufruf:
-    python android_debloater.py               # Gerät automatisch wählen
-    python android_debloater.py -s SERIAL     # bestimmtes Gerät
-    python android_debloater.py --dry-run     # nur anzeigen, nichts ändern
+    python android_debloater.py                       # Dry-Run: nur anzeigen
+    python android_debloater.py --run                 # Änderungen wirklich anwenden
+    python android_debloater.py -s SERIAL             # bestimmtes Gerät
+    python android_debloater.py --run --private-dns dns.quad9.net
+    python android_debloater.py --run --disable-agps --include-optional
 """
 import argparse
 import os
@@ -28,17 +31,20 @@ COMMON_SETTINGS = [
     # WLAN- und Bluetooth-Suche im Hintergrund (auch wenn deaktiviert) abschalten
     ("global", "wifi_scan_always_enabled", "0"),
     ("global", "ble_scan_always_enabled", "0"),
-    # Personalisierte Werbung / Werbe-ID einschränken
-    ("secure", "limit_ad_tracking", "1"),
-    # Google Play Protect App-Überprüfung deaktivieren (optional, falls gewünscht)
-    # ("global", "package_verifier_user_consent", "-1"),
+    # Keine Nachrichteninhalte auf dem Sperrbildschirm
+    ("secure", "lock_screen_allow_private_notifications", "0"),
+    # Play Protect: unbekannte APKs nicht an Google hochladen (Scan bleibt aktiv)
+    ("global", "upload_apk_enable", "0"),
+    # Keine WLAN-Bewertung/Empfehlungen durch Google Play-Dienste
+    ("global", "network_recommendations_enabled", "0"),
+    # Hinweis anzeigen, wenn eine App die Zwischenablage liest
+    ("secure", "clipboard_show_access_notifications", "1"),
 ]
 
 # Zu entfernende Pakete (--user 0), gültig für alle Geräte
 COMMON_PACKAGES = [
     # Google SafetyCore & Key Verifier (Client-Side Scanning / Kontakt-Verifizierung)
     "com.google.android.safetycore",
-    "com.google.android.contactkeys",
     # Google Telemetrie / Feedback / Partner-Setup
     "com.google.android.feedback",
     "com.google.mainline.telemetry",
@@ -46,22 +52,26 @@ COMMON_PACKAGES = [
 ]
 
 # Herstellerspezifische Ergänzungen. Schlüssel = ro.product.manufacturer (klein).
-# Neue Hersteller einfach hier ergänzen.
+# "optional_packages" werden nur mit --include-optional entfernt.
 VENDOR_PROFILES = {
     "samsung": {
         "settings": [
-            # Samsung Diagnosedaten & Marketing deaktivieren
+            # Samsung Diagnosedaten deaktivieren
             ("system", "samsung_errorlog_agree", "0"),
-            ("system", "marketing_info_agree", "0"),
+            # Dauerhafte Suche nach Geräten in der Nähe abschalten
+            ("system", "nearby_scanning_enabled", "0"),
         ],
         "packages": [
             "com.samsung.android.rubin.app",       # Customization Service (Nutzerprofilierung)
             "com.samsung.android.dqagent",         # Device Quality Agent (Telemetrie)
             "com.samsung.android.app.spage",       # Samsung Free / News-Feed
             "com.samsung.android.mapsagent",       # Samsung App-Empfehlungen / Tracking
-            "com.samsung.android.app.omcagent",    # Carrier/Region App-Installer
             "com.aura.oobe.samsung",               # AppCloud (installiert ungefragt Bloatware)
             "com.sec.android.diagmonagent",        # DiagMonAgent (Fehlerberichte an Samsung)
+        ],
+        "optional_packages": [
+            "com.samsung.android.bixby.agent",     # Bixby (falls nur Google Assistant genutzt)
+            "com.microsoft.appmanager",            # Link zu Windows (Zugriff auf SMS/Kontakte/Mikro)
         ],
     },
     "xiaomi": {
@@ -71,6 +81,7 @@ VENDOR_PROFILES = {
             "com.miui.msa.global",                 # MIUI System Ads
             "com.miui.daemon",                     # MiuiDaemon (Nutzungsstatistiken)
         ],
+        "optional_packages": [],
     },
 }
 # Alias-Hersteller, die dasselbe Profil nutzen
@@ -122,6 +133,7 @@ def find_adb() -> str:
 
 ADB = find_adb()
 SERIAL: str | None = None  # wird nach der Geräteauswahl gesetzt
+LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
 
 
 def run_adb(args: list[str]) -> tuple[int, str, str]:
@@ -145,6 +157,22 @@ def run_adb(args: list[str]) -> tuple[int, str, str]:
 def getprop(name: str) -> str:
     _, out, _ = run_adb(["shell", "getprop", name])
     return out.strip()
+
+
+def get_setting(namespace: str, key: str) -> str | None:
+    """Liest eine Einstellung; None, wenn sie nicht existiert."""
+    code, out, _ = run_adb(["shell", "settings", "get", namespace, key])
+    if code != 0 or out in ("", "null"):
+        return None
+    return out
+
+
+def get_installed_packages() -> set[str]:
+    code, out, err = run_adb(["shell", "pm", "list", "packages"])
+    if code != 0 or not out:
+        print(f"[FEHLER] Paketliste konnte nicht gelesen werden: {err}")
+        sys.exit(1)
+    return {line.replace("package:", "").strip() for line in out.splitlines()}
 
 
 # ---------------------------------------------------------------------------
@@ -224,10 +252,8 @@ def safe_filename_part(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
-
-
 def backup_settings(dev: dict[str, str]) -> None:
+    """Sichert alle Settings (nur lesend, läuft auch im Dry-Run)."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     os.makedirs(LOG_DIR, exist_ok=True)
     filename = os.path.join(
@@ -249,38 +275,38 @@ def backup_settings(dev: dict[str, str]) -> None:
     print(f"[OK] Backup der aktuellen Settings gespeichert in: {filename}")
 
 
-def apply_privacy_settings(settings: list[tuple[str, str, str]], dry_run: bool) -> None:
-    print("\n--- Setze Privacy-Einstellungen ---")
+def apply_privacy_settings(settings: list[tuple[str, str, str]], apply: bool) -> None:
+    print("\n--- Privacy-Einstellungen ---")
     for namespace, key, value in settings:
-        if dry_run:
-            print(f"[DRY]  {namespace}/{key} -> {value}")
+        current = get_setting(namespace, key)
+        if current == value:
+            print(f"[OK]   {namespace}/{key} = {value} (bereits gesetzt)")
+            continue
+        change = f"{namespace}/{key}: {current if current is not None else 'nicht gesetzt'} -> {value}"
+        if not apply:
+            print(f"[DRY]  {change}")
             continue
         code, _, err = run_adb(["shell", "settings", "put", namespace, key, value])
         if code == 0:
-            print(f"[SET]  {namespace}/{key} -> {value}")
+            print(f"[SET]  {change}")
         else:
             print(f"[WARN] Konnte {namespace}/{key} nicht setzen: {err}")
 
 
-def remove_packages(packages: list[str], dry_run: bool) -> None:
-    print("\n--- Entferne Pakete (--user 0) ---")
-    code, installed_raw, err = run_adb(["shell", "pm", "list", "packages"])
-    if code != 0 or not installed_raw:
-        print(f"[FEHLER] Paketliste konnte nicht gelesen werden: {err}")
-        sys.exit(1)
-    installed = {line.replace("package:", "").strip() for line in installed_raw.splitlines()}
-
+def remove_packages(packages: list[str], installed: set[str], apply: bool) -> None:
+    print("\n--- Pakete entfernen (--user 0) ---")
     for pkg in packages:
         if pkg not in installed:
             print(f"[SKIP] {pkg} (nicht installiert)")
             continue
-        if dry_run:
+        if not apply:
             print(f"[DRY]  {pkg} würde entfernt")
             continue
 
         code, out, err = run_adb(["shell", "pm", "uninstall", "-k", "--user", "0", pkg])
         if code == 0 and "Success" in out:
             print(f"[DEL]  {pkg} erfolgreich entfernt")
+            installed.discard(pkg)
         else:
             # Fallback: Manche Systempakete lassen sich nur deaktivieren statt deinstallieren
             code_dis, _, err_dis = run_adb(["shell", "pm", "disable-user", "--user", "0", pkg])
@@ -290,6 +316,88 @@ def remove_packages(packages: list[str], dry_run: bool) -> None:
                 print(f"[ERR]  {pkg} fehlgeschlagen: {err or out or err_dis}")
 
 
+def manual_recommendations(dev: dict[str, str], installed: set[str]) -> list[str]:
+    """Prüft Punkte, die sich nicht (sinnvoll) per ADB setzen lassen."""
+    tips: list[str] = []
+    samsung = dev["profile"] == "samsung"
+
+    # Gerätename wird per Bluetooth/Hotspot/Quick Share in der Umgebung sichtbar
+    names = {n for n in (get_setting("global", "device_name"),
+                         get_setting("secure", "bluetooth_name")) if n}
+    if names:
+        shown = ", ".join(f'"{n}"' for n in sorted(names))
+        tips.append(
+            f"Gerätename {shown} ist für Geräte in der Nähe sichtbar (Bluetooth, Hotspot, "
+            "Quick Share). Falls er deinen Namen enthält, einen neutralen Namen wählen: "
+            "Einstellungen > Telefoninfo > Bearbeiten."
+        )
+
+    # Apps mit Zugriff auf alle Benachrichtigungen
+    listeners_raw = get_setting("secure", "enabled_notification_listeners") or ""
+    listeners = sorted({c.split("/")[0] for c in listeners_raw.split(":") if "/" in c})
+    if listeners:
+        tips.append(
+            f"{len(listeners)} App(s) können ALLE Benachrichtigungen lesen. Nicht mehr "
+            "benötigte entziehen (Einstellungen > Benachrichtigungen > Zugriff auf "
+            "Benachrichtigungen):\n" + "\n".join(f"        - {p}" for p in listeners)
+        )
+
+    # Werbe-ID
+    tips.append(
+        "Werbe-ID löschen: Einstellungen > Google > Alle Dienste > Werbung > Werbe-ID löschen."
+    )
+
+    # Gesichtserkennung
+    if "facelock" in (get_setting("secure", "lockscreen.options") or ""):
+        tips.append(
+            "Gesichtserkennung ist aktiv. Sie arbeitet nur mit der Kamera (2D) und ist "
+            "unsicherer als Fingerabdruck + PIN. Ggf. deaktivieren: "
+            "Einstellungen > Sicherheit > Biometrie > Gesichtserkennung."
+        )
+
+    # Samsung Find My Mobile / SmartThings Find: Offline-Standort verschlüsseln
+    if samsung and get_setting("secure", "offline_finding_e2e") == "0":
+        tips.append(
+            "Offline-Finden ist aktiv, aber der Offline-Standort scheint nicht "
+            "verschlüsselt zu sein. Aktivieren: Einstellungen > Sicherheit > Mobilgerät "
+            "finden > Offline-Finden > Offline-Standort verschlüsseln."
+        )
+
+    # SMS/MMS-Backup trotz deaktiviertem Google-Backup
+    if get_setting("secure", "mms_backup_enabled") == "1":
+        tips.append(
+            "SMS/MMS-Backup ist aktiv. Prüfen, wohin Nachrichten gesichert werden "
+            "(Google Messages > Einstellungen > Backup bzw. Samsung Cloud)."
+        )
+
+    # Optionale Pakete, die noch installiert sind
+    if samsung and "com.samsung.android.bixby.agent" in installed:
+        tips.append(
+            "Bixby ist installiert und hat u.a. Standort-, Sensor- und Anrufliste-Rechte. "
+            "Falls ungenutzt: mit --include-optional entfernen."
+        )
+    if "com.microsoft.appmanager" in installed:
+        tips.append(
+            "Link zu Windows ist installiert (vorab-Rechte für SMS, Kontakte, Kamera, "
+            "Mikrofon). Falls ungenutzt: mit --include-optional entfernen oder "
+            "Einstellungen > Verbundene Geräte > Link zu Windows ausschalten."
+        )
+
+    # Private DNS
+    if (get_setting("global", "private_dns_mode") or "opportunistic") != "hostname":
+        tips.append(
+            "Kein fester Private-DNS-Anbieter. Mit --private-dns dns.quad9.net setzen "
+            "oder manuell: Einstellungen > Verbindungen > Weitere > Privates DNS."
+        )
+
+    # USB-Debugging (ist während der Skriptausführung zwangsläufig an)
+    tips.append(
+        "Nach dem Debloaten USB-Debugging und Entwickleroptionen wieder ausschalten: "
+        "Einstellungen > Entwickleroptionen > Schalter oben aus."
+    )
+    return tips
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -297,12 +405,22 @@ def remove_packages(packages: list[str], dry_run: bool) -> None:
 
 def main() -> None:
     global SERIAL
-    parser = argparse.ArgumentParser(description="Android Privacy-Debloater via ADB")
+    parser = argparse.ArgumentParser(
+        description="Android Privacy-Debloater via ADB (Standard: Dry-Run, nichts wird verändert)"
+    )
     parser.add_argument("-s", "--serial", default=os.environ.get("ANDROID_SERIAL"),
                         help="Seriennummer des Geräts (bei mehreren Geräten)")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Nur anzeigen, was geändert würde")
+    parser.add_argument("--run", action="store_true",
+                        help="Änderungen wirklich anwenden (ohne: nur Dry-Run)")
+    parser.add_argument("--private-dns", metavar="HOST",
+                        help="Privates DNS fest setzen, z.B. dns.quad9.net")
+    parser.add_argument("--disable-agps", action="store_true",
+                        help="Assisted GPS abschalten (sendet Funkzellen-Infos an Google; "
+                             "erster GPS-Fix wird langsamer)")
+    parser.add_argument("--include-optional", action="store_true",
+                        help="Auch optionale Pakete entfernen (z.B. Bixby, Link zu Windows)")
     args = parser.parse_args()
+    apply = args.run
 
     SERIAL = select_device(args.serial)
     dev = detect_device()
@@ -310,24 +428,40 @@ def main() -> None:
     label = dev["name"] or dev["model"]
     print(f"[OK] Gerät: {dev['manufacturer']} {label} ({dev['model']}), "
           f"Android {dev['android']} (SDK {dev['sdk']}), Serial {SERIAL}")
+    if not apply:
+        print("[INFO] DRY-RUN: es wird nichts verändert. Mit --run anwenden.")
 
     profile = VENDOR_PROFILES.get(dev["profile"])
     if profile:
         print(f"[INFO] Herstellerprofil: {dev['profile']}")
     else:
         print(f"[INFO] Kein Herstellerprofil für '{dev['manufacturer']}', nur allgemeine Regeln.")
-        profile = {"settings": [], "packages": []}
+        profile = {"settings": [], "packages": [], "optional_packages": []}
 
     settings = COMMON_SETTINGS + profile["settings"]
+    if args.private_dns:
+        settings += [("global", "private_dns_mode", "hostname"),
+                     ("global", "private_dns_specifier", args.private_dns)]
+    if args.disable_agps:
+        settings.append(("global", "assisted_gps_enabled", "0"))
+
     packages = COMMON_PACKAGES + profile["packages"]
+    if args.include_optional:
+        packages += profile.get("optional_packages", [])
 
     backup_settings(dev)
-    apply_privacy_settings(settings, args.dry_run)
-    remove_packages(packages, args.dry_run)
-    if args.dry_run:
-        print("\nDry-Run beendet, es wurde nichts verändert.")
-    else:
+    installed = get_installed_packages()
+    apply_privacy_settings(settings, apply)
+    remove_packages(packages, installed, apply)
+
+    print("\n--- Manuelle Empfehlungen ---")
+    for i, tip in enumerate(manual_recommendations(dev, installed), 1):
+        print(f"  {i}. {tip}")
+
+    if apply:
         print("\nFertig. Ein Neustart des Geräts wird empfohlen.")
+    else:
+        print("\nDry-Run beendet, es wurde nichts verändert. Zum Anwenden: --run")
 
 
 if __name__ == "__main__":
