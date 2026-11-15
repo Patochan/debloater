@@ -469,11 +469,82 @@ def select_device(requested: str | None) -> str:
             return ready[int(choice) - 1][0]
 
 
+def pair_device(hostport: str, pairing_code: str | None) -> None:
+    """Pair with a device via Android 11+ Wireless debugging (adb pair)."""
+    if not pairing_code:
+        if not sys.stdin.isatty():
+            print("[ERROR] --pair needs --pair-code when there is no interactive terminal.")
+            sys.exit(1)
+        try:
+            pairing_code = input("Pairing code (6 digits, shown under "
+                                 "'Pair device with pairing code'): ")
+        except (EOFError, KeyboardInterrupt):
+            # Windows reports NUL as a terminal, so input can still end here
+            print("\n[ERROR] No pairing code entered. Use --pair-code CODE.")
+            sys.exit(1)
+    code, out, err = run_adb(["pair", hostport, pairing_code.strip()])
+    if code == 0 and "Successfully paired" in out:
+        print(f"[OK]   Paired with {hostport}")
+    else:
+        print(f"[ERROR] Pairing with {hostport} failed: {err or out}")
+        print("  Check that the IP/port and code match the 'Pair device with pairing code' "
+              "dialog, which must stay open while pairing.")
+        sys.exit(1)
+
+
+def find_connect_endpoint(host: str) -> str | None:
+    """Find the Wireless debugging connect address (IP:PORT) of a host via adb mDNS."""
+    for _ in range(5):  # the service shows up a few seconds after pairing
+        _, out, _ = run_adb(["mdns", "services"])
+        for line in out.splitlines():
+            if "_adb-tls-connect._tcp" in line:
+                endpoint = line.split()[-1]
+                if endpoint.split(":")[0] == host:
+                    return endpoint
+        time.sleep(1)
+    return None
+
+
+def connect_device(hostport: str) -> str:
+    """Connect to a device over the network (adb connect); return its adb serial."""
+    if ":" not in hostport:
+        hostport += ":5555"
+    _, out, err = run_adb(["connect", hostport])
+    if "connected to" in out:  # also matches "already connected to"
+        print(f"[OK]   Connected to {hostport} over the network")
+        return hostport
+    print(f"[ERROR] Could not connect to {hostport}: {err or out}")
+    print("  Check that the phone is on the same network and network debugging is on "
+          "(--tcpip over USB, or Wireless debugging + --pair).")
+    sys.exit(1)
+
+
+def switch_to_tcpip(port: int) -> str:
+    """Switch the USB-connected device to network adb and connect to it; return new serial."""
+    print("\n--- Switching adb to the network ---")
+    _, out, _ = run_adb(["shell", "ip -f inet addr show wlan0"])
+    m = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", out)
+    if not m:
+        print("[ERROR] The device has no Wi-Fi IP address. Connect it to Wi-Fi first.")
+        sys.exit(1)
+    ip = m.group(1)
+    code, out, err = run_adb(["tcpip", str(port)])
+    if code != 0:
+        print(f"[ERROR] Could not switch adb to network mode: {err or out}")
+        sys.exit(1)
+    print(f"[SET]  adb listens on {ip}:{port} (until the next reboot)")
+    time.sleep(2)  # adb restarts on the device
+    serial = connect_device(f"{ip}:{port}")
+    print(f"[INFO] You can unplug the USB cable now. Next time: --connect {ip}:{port}")
+    return serial
+
+
 def detect_device() -> dict[str, str]:
     """Read manufacturer, model and Android version of the device."""
     manufacturer = getprop("ro.product.manufacturer") or "unknown"
     info = {
-        "serial": SERIAL or "",
+        # Hardware serial, not the adb address: stays the same over USB and network
+        "serial": getprop("ro.serialno") or SERIAL or "",
         "manufacturer": manufacturer,
         "brand": getprop("ro.product.brand"),
         "model": getprop("ro.product.model") or "unknown",
@@ -626,7 +697,8 @@ def short(value: str | None, limit: int = 70) -> str:
     return value if len(value) <= limit else value[:limit] + "..."
 
 
-def restore_backup(path: str, apply: bool, restore_all: bool, force: bool) -> None:
+def restore_backup(path: str, apply: bool, restore_all: bool, force: bool,
+                   device_serial: str) -> None:
     if not os.path.isfile(path):
         print(f"[ERROR] Backup file not found: {path}")
         sys.exit(1)
@@ -636,8 +708,9 @@ def restore_backup(path: str, apply: bool, restore_all: bool, force: bool) -> No
     print(f"\n[INFO] Backup: {os.path.basename(path)}")
     print(f"[INFO] Backup device: {device.get('manufacturer', '?')} {device.get('model', '?')} "
           f"(serial {serial or '?'})")
-    if serial and serial != SERIAL and not force:
-        print(f"[ERROR] Backup is from a different device ({serial}, connected: {SERIAL}).")
+    if serial and serial not in (device_serial, SERIAL) and not force:
+        print(f"[ERROR] Backup is from a different device ({serial}, "
+              f"connected: {device_serial}).")
         print("  Use --force to restore anyway.")
         sys.exit(1)
     mode = "ALL settings" if restore_all else "only settings managed by the script"
@@ -864,10 +937,12 @@ def ask_reboot() -> None:
 
 
 def disable_adb() -> None:
-    """Turn off Developer options and USB debugging. Must be the very last step."""
+    """Turn off Developer options, wireless and USB debugging. Must be the very last step."""
     print("\n--- Turning off USB debugging ---")
     run_adb(["shell", "settings", "put", "global", "development_settings_enabled", "0"])
     print("[SET]  Developer options off")
+    run_adb(["shell", "settings", "put", "global", "adb_wifi_enabled", "0"])
+    print("[SET]  Wireless debugging off")
     print("[SET]  USB debugging off - the adb connection ends now")
     # The connection drops while this runs, so the result can't be checked
     run_adb(["shell", "settings", "put", "global", "adb_enabled", "0"])
@@ -1252,6 +1327,17 @@ def main() -> None:
     )
     parser.add_argument("-s", "--serial", default=os.environ.get("ANDROID_SERIAL"),
                         help="serial number of the device (if several are connected)")
+    parser.add_argument("--connect", metavar="HOST[:PORT]",
+                        help="connect to the device over the network (adb connect); "
+                             "default port 5555")
+    parser.add_argument("--pair", metavar="HOST:PORT",
+                        help="pair via Android 11+ Wireless debugging first (adb pair), "
+                             "then connect")
+    parser.add_argument("--pair-code", metavar="CODE",
+                        help="6-digit pairing code for --pair (asked for if missing)")
+    parser.add_argument("--tcpip", nargs="?", const=5555, type=int, metavar="PORT",
+                        help="switch the USB-connected device to network adb (default port "
+                             "5555) and continue over Wi-Fi")
     parser.add_argument("--run", action="store_true",
                         help="actually apply changes (without it: dry run only)")
     parser.add_argument("--private-dns", metavar="HOST",
@@ -1294,7 +1380,24 @@ def main() -> None:
         parser.error("--screen-timeout must be at least 10 seconds")
     apply = args.run
 
+    if args.pair:
+        pair_device(args.pair, args.pair_code)
+        if not args.connect:
+            host = args.pair.rsplit(":", 1)[0]
+            args.connect = find_connect_endpoint(host)
+            if not args.connect:
+                print(f"[ERROR] Could not find the connect address of {host}. Add "
+                      "--connect IP:PORT (shown at the top of the Wireless debugging screen).")
+                sys.exit(1)
+    if args.connect:
+        args.serial = connect_device(args.connect)
+
     SERIAL = select_device(args.serial)
+    if args.tcpip:
+        if ":" in SERIAL or "._adb-tls-connect" in SERIAL:
+            print("[INFO] Already connected over the network, --tcpip is not needed.")
+        else:
+            SERIAL = switch_to_tcpip(args.tcpip)
     dev = detect_device()
 
     label = dev["name"] or dev["model"]
@@ -1306,7 +1409,7 @@ def main() -> None:
     backup_settings(dev)
 
     if args.restore:
-        restore_backup(args.restore, apply, args.all, args.force)
+        restore_backup(args.restore, apply, args.all, args.force, dev["serial"])
         if apply:
             ask_reboot()
         return

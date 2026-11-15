@@ -33,6 +33,10 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | Option | Description |
 |---|---|
 | `--run` | Apply the changes. Without it, the script only does a dry run. |
+| `--connect HOST[:PORT]` | Connect to the device over the network (`adb connect`, default port 5555). See [ADB over the network](#adb-over-the-network). |
+| `--pair HOST:PORT` | Pair via Android 11+ Wireless debugging (`adb pair`), then connect. |
+| `--pair-code CODE` | 6-digit pairing code for `--pair`; asked for if missing. |
+| `--tcpip [PORT]` | Switch a USB-connected device to network adb (default port 5555) and continue over Wi-Fi. |
 | `-s`, `--serial SERIAL` | Choose a device by serial number. Defaults to `ANDROID_SERIAL`. If several devices are connected and none is chosen, the script asks which one to use. |
 | `--private-dns HOST` | Set a fixed Private DNS provider, e.g. `dns.quad9.net`, and check that it works (see [Private DNS](#private-dns)). |
 | `--disable-agps` | Turn off Assisted GPS, which sends cell tower info to Google. The trade-off is a slower first GPS fix. |
@@ -66,6 +70,53 @@ python android_debloater.py --run --ai --cloud                       # turn off 
 python android_debloater.py --restore logs/<backup>.txt              # restore: dry run
 python android_debloater.py --restore logs/<backup>.txt --run        # restore: apply
 ```
+
+## ADB over the network
+
+The script can also work over Wi-Fi instead of USB. The phone and the computer must be on the same network. There are three ways:
+
+**1. Wireless debugging (Android 11+, no cable needed):**
+
+1. On the phone: Developer options → **Wireless debugging** → on → **Pair device with pairing code**. Keep this dialog open.
+2. Run the script with the IP address and port shown in the dialog:
+
+   ```bash
+   python android_debloater.py --pair 192.168.1.50:37123                    # asks for the 6-digit code
+   python android_debloater.py --pair 192.168.1.50:37123 --pair-code 482913 # code on the command line
+   ```
+
+   After pairing, the script finds the connect address automatically. If it can't, add the IP address and port shown at the top of the Wireless debugging screen: `--connect 192.168.1.50:41235`.
+
+3. Pairing is only needed once. Next time, while Wireless debugging is on:
+
+   ```bash
+   python android_debloater.py --connect 192.168.1.50:41235
+   ```
+
+   The port changes each time Wireless debugging is turned on; check the Wireless debugging screen.
+
+**2. Switch from USB to Wi-Fi (`--tcpip`, all Android versions):**
+
+With the phone connected by USB:
+
+```bash
+python android_debloater.py --tcpip              # port 5555
+python android_debloater.py --tcpip 5556 --run   # other port, and apply changes
+```
+
+The script finds the phone's Wi-Fi IP, switches adb to network mode and continues over Wi-Fi. After that, the USB cable can be unplugged. Network mode lasts until the next reboot; until then, connect again with:
+
+```bash
+python android_debloater.py --connect 192.168.1.50
+```
+
+**3. Network debugging already on:** just use `--connect HOST[:PORT]`.
+
+All other options work the same over the network, e.g. `--connect 192.168.1.50 --run --ai --cloud`.
+
+**Security:** while network debugging is on, anyone on the same network can try to connect. They would still have to be allowed on the phone ("Allow debugging?"). Turn it off when you're done: `--disable-adb` turns off USB and wireless debugging, and `--tcpip` mode also ends with the next reboot.
+
+Backups contain the phone's hardware serial number, so a backup taken over USB can be restored over the network and vice versa.
 
 ## Output
 
