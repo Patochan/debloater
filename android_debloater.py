@@ -187,6 +187,55 @@ VENDOR_PROFILES = {
         "optional_packages": [],
     },
 }
+# Short labels shown next to package names in the output (details: README).
+# Keys ending in "." match every package with that prefix.
+PACKAGE_LABELS = {
+    "com.google.android.safetycore": "SafetyCore: scans content on the device",
+    "com.google.android.feedback": "Google Feedback: crash reports to Google",
+    "com.google.mainline.telemetry": "Google system update telemetry",
+    "com.google.android.partnersetup": "Google Partner Setup: partner IDs",
+    "com.facebook.services": "Facebook Services: background data",
+    "com.facebook.system": "Facebook App Installer",
+    "com.facebook.appmanager": "Facebook App Manager",
+    "com.samsung.android.rubin.app": "Customization Service: usage profiling",
+    "com.samsung.android.dqagent": "Device Quality Agent: telemetry",
+    "com.samsung.android.app.spage": "Samsung Free: news/ads feed",
+    "com.samsung.android.mapsagent": "Samsung location agent",
+    "com.aura.oobe.samsung": "AppCloud: installs promoted apps",
+    "com.sec.android.diagmonagent": "DiagMonAgent: error reports to Samsung",
+    "com.samsung.android.bixby.agent": "Bixby voice assistant",
+    "com.microsoft.appmanager": "Link to Windows",
+    "com.miui.analytics": "MIUI Analytics: telemetry",
+    "com.miui.msa.global": "MIUI System Ads",
+    "com.miui.daemon": "MiuiDaemon: usage statistics",
+    "com.google.android.apps.bard": "Gemini",
+    "com.google.android.aicore": "AICore: on-device Gemini Nano",
+    "com.google.android.apps.aiwallpapers": "AI wallpapers",
+    "com.google.android.as": "Android System Intelligence",
+    "com.google.android.as.oss": "Private Compute Services",
+    "com.samsung.android.aicore": "Samsung AI Core (Galaxy AI)",
+    "com.samsung.android.smartsuggestions": "Smart suggestions: reads notifications",
+    "com.samsung.android.app.interpreter": "Interpreter: live translation",
+    "com.samsung.android.callassistant": "Call Assist / Text Call",
+    "com.samsung.android.visionintelligence": "Bixby Vision",
+    "com.samsung.android.bixbyvision.framework": "Bixby Vision framework",
+    "com.samsung.android.vision.model": "on-device vision AI models",
+    "com.samsung.android.bixby.wakeup": "\"Hi Bixby\" voice wake-up",
+    "com.samsung.android.bixby.ondevice.": "Bixby language pack",
+    "com.samsung.android.scloud": "Samsung Cloud",
+    "com.microsoft.skydrive": "OneDrive",
+    "com.google.android.contactkeys": "Android System Key Verifier",
+    "com.samsung.android.app.omcagent": "carrier/region app installer",
+}
+
+
+def pkg_name(pkg: str) -> str:
+    """Package name with its short label, e.g. 'com.x.y (What it is)'."""
+    label = PACKAGE_LABELS.get(pkg) or next(
+        (v for k, v in PACKAGE_LABELS.items() if k.endswith(".") and pkg.startswith(k)), None)
+    return f"{pkg} ({label})" if label else pkg
+
+
 # Manufacturer aliases that share a profile
 VENDOR_ALIASES = {"redmi": "xiaomi", "poco": "xiaomi"}
 
@@ -695,29 +744,29 @@ def restore_backup(path: str, apply: bool, restore_all: bool, force: bool) -> No
         if pkg not in installed:
             if pkg not in on_system:
                 if backup_pkgs is not None:
-                    print(f"[SKIP] {pkg} no longer on the device (reinstall from Play Store)")
+                    print(f"[SKIP] {pkg_name(pkg)} no longer on the device (reinstall from Play Store)")
                 continue
             pkg_changes += 1
             if not apply:
-                print(f"[DRY]  {pkg} would be restored")
+                print(f"[DRY]  {pkg_name(pkg)} would be restored")
                 continue
             code, out, err = run_adb(["shell", "pm", "install-existing", "--user", "0", pkg])
             if code == 0 and "installed" in out.lower():
-                print(f"[ADD]  {pkg} restored")
+                print(f"[ADD]  {pkg_name(pkg)} restored")
             else:
                 failed += 1
-                print(f"[ERR]  {pkg}: {err or out}")
+                print(f"[ERR]  {pkg_name(pkg)}: {err or out}")
         elif pkg in disabled and pkg not in was_disabled:
             pkg_changes += 1
             if not apply:
-                print(f"[DRY]  {pkg} would be enabled")
+                print(f"[DRY]  {pkg_name(pkg)} would be enabled")
                 continue
             code, out, err = run_adb(["shell", "pm", "enable", "--user", "0", pkg])
             if code == 0:
-                print(f"[ENA]  {pkg} enabled")
+                print(f"[ENA]  {pkg_name(pkg)} enabled")
             else:
                 failed += 1
-                print(f"[ERR]  {pkg}: {err or out}")
+                print(f"[ERR]  {pkg_name(pkg)}: {err or out}")
 
     if pkg_changes == 0:
         print("[OK]   No packages to restore.")
@@ -957,29 +1006,29 @@ def remove_packages(packages: list[str], installed: set[str], disabled: set[str]
     print("\n--- Removing packages (--user 0) ---")
     for pkg in packages:
         if pkg not in installed:
-            print(f"[SKIP] {pkg} (not installed)")
+            print(f"[SKIP] {pkg_name(pkg)} - not installed")
             continue
         if pkg in disabled:
             # Disabled packages are still listed as installed; uninstalling was
             # already refused on an earlier run, so there is nothing left to do.
-            print(f"[OK]   {pkg} (already disabled)")
+            print(f"[OK]   {pkg_name(pkg)} - already disabled")
             continue
         if not apply:
-            print(f"[DRY]  {pkg} would be removed/disabled")
+            print(f"[DRY]  {pkg_name(pkg)} would be removed/disabled")
             continue
 
         code, out, err = run_adb(["shell", "pm", "uninstall", "-k", "--user", "0", pkg])
         if code == 0 and "Success" in out:
-            print(f"[DEL]  {pkg} removed")
+            print(f"[DEL]  {pkg_name(pkg)} removed")
             installed.discard(pkg)
         else:
             # Fallback: some system packages can only be disabled, not uninstalled
             code_dis, _, err_dis = run_adb(["shell", "pm", "disable-user", "--user", "0", pkg])
             if code_dis == 0:
-                print(f"[DIS]  {pkg} disabled (uninstall not allowed)")
+                print(f"[DIS]  {pkg_name(pkg)} disabled - uninstall not allowed")
                 disabled.add(pkg)
             else:
-                print(f"[ERR]  {pkg} failed: {err or out or err_dis}")
+                print(f"[ERR]  {pkg_name(pkg)} failed: {err or out or err_dis}")
 
 
 def manual_recommendations(dev: dict[str, str], installed: set[str],

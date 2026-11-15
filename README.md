@@ -314,18 +314,18 @@ Dry run with `--ai --cloud` on a Samsung Galaxy S21 FE (privacy settings already
 
 --- Removing packages (--user 0) ---
 ...
-[OK]   com.google.android.apps.bard (already disabled)
-[SKIP] com.google.android.aicore (not installed)
-[DRY]  com.google.android.as would be removed/disabled
-[DRY]  com.google.android.as.oss would be removed/disabled
-[DRY]  com.samsung.android.smartsuggestions would be removed/disabled
-[DRY]  com.samsung.android.callassistant would be removed/disabled
-[DRY]  com.samsung.android.visionintelligence would be removed/disabled
-[DRY]  com.samsung.android.bixbyvision.framework would be removed/disabled
-[OK]   com.samsung.android.bixby.agent (already disabled)
-[DRY]  com.samsung.android.bixby.wakeup would be removed/disabled
-[DRY]  com.samsung.android.scloud would be removed/disabled
-[OK]   com.microsoft.skydrive (already disabled)
+[OK]   com.google.android.apps.bard (Gemini) - already disabled
+[SKIP] com.google.android.aicore (AICore: on-device Gemini Nano) - not installed
+[DRY]  com.google.android.as (Android System Intelligence) would be removed/disabled
+[DRY]  com.google.android.as.oss (Private Compute Services) would be removed/disabled
+[DRY]  com.samsung.android.smartsuggestions (Smart suggestions: reads notifications) would be removed/disabled
+[DRY]  com.samsung.android.callassistant (Call Assist / Text Call) would be removed/disabled
+[DRY]  com.samsung.android.visionintelligence (Bixby Vision) would be removed/disabled
+[DRY]  com.samsung.android.bixbyvision.framework (Bixby Vision framework) would be removed/disabled
+[OK]   com.samsung.android.bixby.agent (Bixby voice assistant) - already disabled
+[DRY]  com.samsung.android.bixby.wakeup ("Hi Bixby" voice wake-up) would be removed/disabled
+[DRY]  com.samsung.android.scloud (Samsung Cloud) would be removed/disabled
+[OK]   com.microsoft.skydrive (OneDrive) - already disabled
 
 --- AI recommendations ---
   1. Default digital assistant is com.google.android.googlequicksearchbox (Google Assistant/Gemini). If AI assistants aren't wanted, set it to None: Settings > Apps > Choose default apps > Digital assistant app.
@@ -518,8 +518,8 @@ python android_debloater.py --restore logs/settings_backup_samsung_SM-S936B_2026
 [DRY]  global/wifi_scan_always_enabled: 0 -> 1
 
 --- Restoring packages ---
-[DRY]  com.samsung.android.dqagent would be restored
-[DRY]  com.samsung.android.rubin.app would be restored
+[DRY]  com.samsung.android.dqagent (Device Quality Agent: telemetry) would be restored
+[DRY]  com.samsung.android.rubin.app (Customization Service: usage profiling) would be restored
 
 Dry run: 4 setting(s), 2 package(s) would be restored. To apply: --run
 ```
