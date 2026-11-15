@@ -37,6 +37,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `--private-dns HOST` | Set a fixed Private DNS provider, e.g. `dns.quad9.net`. |
 | `--disable-agps` | Turn off Assisted GPS, which sends cell tower info to Google. The trade-off is a slower first GPS fix. |
 | `--include-optional` | Also remove optional packages, e.g. Bixby and Link to Windows on Samsung. |
+| `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
 | `--restore FILE` | Restore settings and packages from a backup file (see [Backup & restore](#backup--restore)). |
 | `--all` | With `--restore`: restore every setting and package that differs from the backup, not only the ones the script manages. |
 | `--force` | With `--restore`: allow a backup taken on a different device. |
@@ -104,6 +105,36 @@ Some changes can't, or shouldn't, be made over ADB. At the end of each run, the 
 - Bixby or Link to Windows is still installed
 - No Private DNS provider set
 - Turning USB debugging off again afterwards
+
+## Battery
+
+### Settings applied with `--battery`
+
+| Setting | Value | Purpose |
+|---|---|---|
+| `global/mobile_data_always_on` | 0 | Don't keep mobile data connected while on Wi-Fi |
+| `global/adaptive_battery_management_enabled` | 1 | Adaptive Battery: limit background activity of rarely used apps |
+| `system/min_refresh_rate` | 60.0 | Only changed if the screen is forced to its peak refresh rate (e.g. 120 Hz) all the time |
+
+### Battery recommendations
+
+Every run also checks battery lifespan and runtime and lists what applies to the device:
+
+- **Lifespan:**
+  - Samsung battery protection (charge limit) is off
+  - Fast wireless or wired charging is on (more heat, more wear)
+  - Charging optimization (limit to 80%) is available
+  - Custom ROMs: check for a charge limit
+- **Runtime:**
+  - Screen forced to its peak refresh rate
+  - Samsung motion smoothness set to adaptive/120 Hz
+  - Always On Display shown permanently
+  - Adaptive brightness off
+  - Mobile data kept connected while on Wi-Fi
+  - Adaptive Battery off
+  - 5G enabled (drains the battery where coverage is weak)
+
+Charge limits are not set automatically: the values of Samsung's `protect_battery` differ between One UI versions, and a wrong value could switch on the wrong mode.
 
 ## Backup & restore
 

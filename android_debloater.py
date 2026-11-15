@@ -54,6 +54,14 @@ COMMON_SETTINGS = [
     ("global", "bug_report", "0"),
 ]
 
+# Battery runtime settings, only applied with --battery (trade-offs, not privacy)
+BATTERY_SETTINGS = [
+    # Don't keep mobile data connected while on Wi-Fi (developer option)
+    ("global", "mobile_data_always_on", "0"),
+    # Adaptive Battery: limit background activity of rarely used apps
+    ("global", "adaptive_battery_management_enabled", "1"),
+]
+
 # Packages to remove (--user 0) on all devices
 COMMON_PACKAGES = [
     # Google SafetyCore (client-side scanning)
@@ -111,6 +119,7 @@ VENDOR_ALIASES = {"redmi": "xiaomi", "poco": "xiaomi"}
 # For --restore: settings/packages changed by earlier versions or options of the
 # script, in addition to the lists above.
 EXTRA_MANAGED_SETTINGS = [
+    ("system", "min_refresh_rate"),
     ("global", "private_dns_mode"),
     ("global", "private_dns_specifier"),
     ("global", "assisted_gps_enabled"),
@@ -383,7 +392,7 @@ def parse_backup(path: str):
 
 
 def managed_settings() -> set[tuple[str, str]]:
-    keys = {(ns, k) for ns, k, _ in COMMON_SETTINGS}
+    keys = {(ns, k) for ns, k, _ in COMMON_SETTINGS + BATTERY_SETTINGS}
     for profile in VENDOR_PROFILES.values():
         keys |= {(ns, k) for ns, k, _ in profile["settings"]}
     return keys | set(EXTRA_MANAGED_SETTINGS)
@@ -686,6 +695,94 @@ def manual_recommendations(dev: dict[str, str], installed: set[str],
     return tips
 
 
+def refresh_rate_fix() -> tuple[str, str, str] | None:
+    """If the minimum refresh rate is forced above 60 Hz, return a setting to allow 60 Hz."""
+    try:
+        if float(get_setting("system", "min_refresh_rate") or 0) > 60:
+            return ("system", "min_refresh_rate", "60.0")
+    except ValueError:
+        pass
+    return None
+
+
+def battery_recommendations(dev: dict[str, str], battery_flag: bool) -> list[str]:
+    """Check settings that affect battery lifespan and runtime."""
+    tips: list[str] = []
+    samsung = dev["profile"] == "samsung" and not dev["custom_rom"]
+
+    # --- Battery lifespan: charge limit and heat ---
+    if samsung:
+        if get_setting("global", "protect_battery") == "0":
+            tips.append(
+                "Battery protection is off, so the battery sits at 100% for hours. Turn it on "
+                "(biggest lifespan gain): Settings > Battery > Battery protection > Maximum "
+                "(limit 80-85%)."
+            )
+        if get_setting("system", "wireless_fast_charging") == "1":
+            tips.append(
+                "Fast wireless charging is on. Wireless charging already produces a lot of heat; "
+                "turning this off reduces battery wear: Settings > Battery > Charging settings."
+            )
+        if "1" in (get_setting("system", "adaptive_fast_charging"),
+                   get_setting("system", "super_fast_charging")):
+            tips.append(
+                "Wired fast charging is on. If you charge overnight or have time, turning it off "
+                "means less heat and less wear: Settings > Battery > Charging settings."
+            )
+    elif get_setting("secure", "charge_optimization_mode") is not None:
+        tips.append(
+            "This system supports charging optimization. Limit charging to 80% if offered: "
+            "Settings > Battery > Charging optimization > Limit to 80%."
+        )
+    elif dev["custom_rom"]:
+        tips.append(
+            "Custom ROM: check for a charge limit (LineageOS-based ROMs: Settings > Battery > "
+            "Charging control) and limit charging to 80%."
+        )
+
+    # --- Runtime: display ---
+    if refresh_rate_fix() and not battery_flag:
+        tips.append(
+            "The screen is forced to its peak refresh rate all the time (min_refresh_rate > 60). "
+            "Allowing 60 Hz saves a lot of battery: use --battery, or turn off "
+            "Developer options > Force peak refresh rate."
+        )
+    # refresh_rate_mode: 0 = Standard (60 Hz), 2 = Adaptive (verified on One UI 8/9)
+    if samsung and (get_setting("secure", "refresh_rate_mode") or "0") != "0":
+        tips.append(
+            "Motion smoothness is set to adaptive/high (up to 120 Hz). Standard (60 Hz) saves "
+            "noticeable battery: Settings > Display > Motion smoothness > Standard."
+        )
+    if samsung and get_setting("system", "aod_mode") == "1" \
+            and get_setting("system", "aod_tap_to_show_mode") == "0":
+        tips.append(
+            "Always On Display is shown permanently. 'Tap to show' or off saves battery: "
+            "Settings > Lock screen and AOD > Always On Display."
+        )
+    if get_setting("system", "screen_brightness_mode") == "0":
+        tips.append(
+            "Adaptive brightness is off. Turning it on usually saves battery, since the screen "
+            "is the biggest consumer: Settings > Display > Adaptive brightness."
+        )
+
+    # --- Runtime: radios and background ---
+    if get_setting("global", "mobile_data_always_on") == "1" and not battery_flag:
+        tips.append(
+            "Mobile data stays connected while on Wi-Fi (mobile_data_always_on=1). "
+            "Use --battery to turn it off."
+        )
+    if get_setting("global", "adaptive_battery_management_enabled") == "0" and not battery_flag:
+        tips.append("Adaptive Battery is off. Use --battery to turn it on.")
+    modes = get_setting("global", "preferred_network_mode") or ""
+    if any(m.strip().isdigit() and int(m) >= 23 for m in modes.split(",")):
+        tips.append(
+            "5G is enabled. Where 5G coverage is weak, the modem keeps searching and drains the "
+            "battery; switching to LTE/4G helps: Settings > Connections > Mobile networks > "
+            "Network mode."
+        )
+    return tips
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -707,6 +804,9 @@ def main() -> None:
                              "first GPS fix gets slower)")
     parser.add_argument("--include-optional", action="store_true",
                         help="also remove optional packages (e.g. Bixby, Link to Windows)")
+    parser.add_argument("--battery", action="store_true",
+                        help="also apply battery runtime settings (mobile data not kept "
+                             "connected on Wi-Fi, Adaptive Battery on, no forced peak refresh rate)")
     parser.add_argument("--restore", metavar="FILE",
                         help="restore settings/packages from a backup file")
     parser.add_argument("--all", action="store_true",
@@ -755,6 +855,11 @@ def main() -> None:
                      ("global", "private_dns_specifier", args.private_dns)]
     if args.disable_agps:
         settings.append(("global", "assisted_gps_enabled", "0"))
+    if args.battery:
+        settings += BATTERY_SETTINGS
+        fix = refresh_rate_fix()
+        if fix:
+            settings.append(fix)
 
     packages = COMMON_PACKAGES + profile["packages"]
     if args.include_optional:
@@ -769,6 +874,13 @@ def main() -> None:
     # Disabled packages don't run, so they don't need a "still installed" tip
     tips = manual_recommendations(dev, installed - disabled, bool(args.private_dns))
     for i, tip in enumerate(tips, 1):
+        print(f"  {i}. {tip}")
+
+    print("\n--- Battery recommendations ---")
+    battery_tips = battery_recommendations(dev, args.battery)
+    if not battery_tips:
+        print("  No battery issues found.")
+    for i, tip in enumerate(battery_tips, 1):
         print(f"  {i}. {tip}")
 
     if apply:
