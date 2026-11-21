@@ -2,9 +2,12 @@
 
 Run from the repo folder:  python -m unittest -v
 """
+import contextlib
+import io
 import os
 import tempfile
 import unittest
+import unittest.mock
 
 # The module looks up adb when it is imported. Any existing file satisfies that;
 # the tests never run adb.
@@ -43,6 +46,34 @@ class ParseBackupTest(unittest.TestCase):
         self.assertEqual(settings["secure"], {})
         self.assertEqual(settings["global"], {"k": "v"})
         self.assertEqual(packages, {"installed": {"com.a", "com.b"}, "disabled": {"com.b"}})
+
+
+class DisableAdbTest(unittest.TestCase):
+    def _order(self, over_network):
+        """Setting keys in the order disable_adb writes them."""
+        sent = []
+
+        def fake_adb(args):
+            sent.append(args[-2])  # "settings put global <key> 0"
+            return 0, "", ""
+
+        with unittest.mock.patch.object(ad, "run_adb", side_effect=fake_adb), \
+                contextlib.redirect_stdout(io.StringIO()):
+            ad.disable_adb(over_network)
+        return sent
+
+    def test_usb_turns_adb_off_last(self):
+        self.assertEqual(self._order(False), [
+            "development_settings_enabled", "adb_wifi_enabled", "adb_enabled"])
+
+    def test_wifi_turns_usb_debugging_off_before_wireless(self):
+        self.assertEqual(self._order(True), [
+            "development_settings_enabled", "adb_enabled", "adb_wifi_enabled"])
+
+    def test_network_serial(self):
+        self.assertTrue(ad.is_network_serial("192.168.1.5:5555"))
+        self.assertTrue(ad.is_network_serial("adb-XYZ._adb-tls-connect._tcp"))
+        self.assertFalse(ad.is_network_serial("ABC123"))
 
 
 class ExpandPackagesTest(unittest.TestCase):

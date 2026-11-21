@@ -378,6 +378,11 @@ SERIAL: str | None = None  # set after device selection
 LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
 
 
+def is_network_serial(serial: str) -> bool:
+    """True for an IP:PORT address or a Wireless debugging (mDNS) name."""
+    return ":" in serial or "._adb-tls-connect" in serial
+
+
 def run_adb(args: list[str]) -> tuple[int, str, str]:
     """Run an ADB command (for the selected device): (return code, stdout, stderr)."""
     cmd = [ADB]
@@ -936,16 +941,23 @@ def ask_reboot() -> None:
         print(f"[WARN] Reboot failed: {err or out}. Reboot the device by hand.")
 
 
-def disable_adb() -> None:
+def disable_adb(over_network: bool) -> None:
     """Turn off Developer options, wireless and USB debugging. Must be the very last step."""
     print("\n--- Turning off USB debugging ---")
-    run_adb(["shell", "settings", "put", "global", "development_settings_enabled", "0"])
-    print("[SET]  Developer options off")
-    run_adb(["shell", "settings", "put", "global", "adb_wifi_enabled", "0"])
-    print("[SET]  Wireless debugging off")
-    print("[SET]  USB debugging off - the adb connection ends now")
-    # The connection drops while this runs, so the result can't be checked
-    run_adb(["shell", "settings", "put", "global", "adb_enabled", "0"])
+    labels = {"development_settings_enabled": "Developer options off",
+              "adb_wifi_enabled": "Wireless debugging off",
+              "adb_enabled": "USB debugging off"}
+    # Over Wi-Fi, turning off wireless debugging cuts the connection, so USB debugging goes first
+    order = ["development_settings_enabled", "adb_wifi_enabled", "adb_enabled"]
+    if over_network:
+        order = ["development_settings_enabled", "adb_enabled", "adb_wifi_enabled"]
+    for key in order:
+        # The connection can drop on the last step, so a failure there may just mean that
+        code, _, err = run_adb(["shell", "settings", "put", "global", key, "0"])
+        if code == 0:
+            print(f"[SET]  {labels[key]}")
+        else:
+            print(f"[WARN] {labels[key]}: not confirmed ({err or 'the connection ended'})")
 
 
 def existing_settings(settings: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
@@ -1394,7 +1406,7 @@ def main() -> None:
 
     SERIAL = select_device(args.serial)
     if args.tcpip:
-        if ":" in SERIAL or "._adb-tls-connect" in SERIAL:
+        if is_network_serial(SERIAL):
             print("[INFO] Already connected over the network, --tcpip is not needed.")
         else:
             SERIAL = switch_to_tcpip(args.tcpip)
@@ -1500,7 +1512,7 @@ def main() -> None:
     if apply:
         print("\nDone. A reboot of the device is recommended.")
         if args.disable_adb:
-            disable_adb()
+            disable_adb(is_network_serial(SERIAL))
             print("[INFO] adb can't reach the device anymore, so reboot it by hand.")
         else:
             ask_reboot()
