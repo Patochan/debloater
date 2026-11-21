@@ -18,6 +18,7 @@ Restore from a backup (also a dry run by default):
     python android_debloater.py --restore logs/settings_backup_....txt --all --run
 """
 import argparse
+import atexit
 import os
 import re
 import shlex
@@ -33,6 +34,17 @@ from datetime import datetime
 
 # Private DNS provider set when --private-dns is not given (DNS over TLS, checked after setting)
 DEFAULT_PRIVATE_DNS = "dns.quad9.net"
+
+# Short label per package, shown in the output and the README. Filled by pkg().
+PACKAGE_LABELS: dict[str, str] = {}
+
+
+def pkg(name: str, label: str | None = None) -> str:
+    """Return the package name and remember its label (one place per package)."""
+    if label:
+        PACKAGE_LABELS[name] = label
+    return name
+
 PRIVATE_DNS_MIN_SDK = 28  # Android 9 (Pie) introduced Private DNS
 
 
@@ -96,14 +108,14 @@ AI_SETTINGS = [
     ("secure", "assist_touch_gesture_enabled", "0"),
 ]
 AI_PACKAGES = [
-    "com.google.android.apps.bard",                # Gemini
-    "com.google.android.aicore",                   # AICore (on-device Gemini Nano)
-    "com.google.android.apps.aiwallpapers",        # AI wallpapers
-    "com.google.android.as",                       # Android System Intelligence
-    "com.google.android.as.oss",                   # Private Compute Services (ASI network bridge)
-    "com.google.ar.lens",                          # Google Lens (AI visual search)
-    "com.google.android.apps.genie.geniewidget",   # Google Now widget (Genie)
-    "com.google.android.ears",                     # speech recognition for Google Now
+    pkg("com.google.android.apps.bard", "Gemini"),
+    pkg("com.google.android.aicore", "AICore: on-device Gemini Nano"),
+    pkg("com.google.android.apps.aiwallpapers", "AI wallpapers"),
+    pkg("com.google.android.as", "Android System Intelligence"),
+    pkg("com.google.android.as.oss", "Private Compute Services"),
+    pkg("com.google.ar.lens", "Google Lens: AI visual search"),
+    pkg("com.google.android.apps.genie.geniewidget", "Google Now widget (Genie)"),
+    pkg("com.google.android.ears", "Google Now speech recognition"),
 ]
 # Apps the user installed themselves: only reported, never removed
 AI_USER_APPS = {
@@ -132,46 +144,46 @@ CLOUD_USER_APPS = {
 # Packages to remove (--user 0) on all devices
 COMMON_PACKAGES = [
     # Google SafetyCore (client-side scanning)
-    "com.google.android.safetycore",
+    pkg("com.google.android.safetycore", "SafetyCore: scans content on the device"),
     # Google telemetry / feedback / partner setup
-    "com.google.android.feedback",
-    "com.google.mainline.telemetry",
-    "com.google.android.partnersetup",
+    pkg("com.google.android.feedback", "Google Feedback: crash reports to Google"),
+    pkg("com.google.mainline.telemetry", "Google system update telemetry"),
+    pkg("com.google.android.partnersetup", "Google Partner Setup: partner IDs"),
     # Google Device Health Services: device telemetry
-    "com.google.android.apps.turbo",
+    pkg("com.google.android.apps.turbo", "Device Health Services: device telemetry"),
     # Preinstalled Facebook services (run even without the Facebook app, e.g. Samsung/Xiaomi)
-    "com.facebook.services",
-    "com.facebook.system",
-    "com.facebook.appmanager",
+    pkg("com.facebook.services", "Facebook Services: background data"),
+    pkg("com.facebook.system", "Facebook App Installer"),
+    pkg("com.facebook.appmanager", "Facebook App Manager"),
 ]
 # Google apps removed only with --include-optional (all devices; used by many people)
 COMMON_OPTIONAL_PACKAGES = [
-    "com.google.android.videos",           # Google TV (Play Movies & TV)
-    "com.google.android.apps.tachyon",     # Google Meet / Duo calling
-    "com.google.android.apps.magazines",   # Google News
-    "com.google.android.apps.plus",        # Google+ (discontinued)
-    "com.google.android.talk",             # Hangouts (old)
-    "com.google.android.music",            # Play Music (discontinued)
+    pkg("com.google.android.videos", "Google TV: movies and shows"),
+    pkg("com.google.android.apps.tachyon", "Google Meet / Duo calling"),
+    pkg("com.google.android.apps.magazines", "Google News"),
+    pkg("com.google.android.apps.plus", "Google+ (discontinued)"),
+    pkg("com.google.android.talk", "Hangouts (old)"),
+    pkg("com.google.android.music", "Play Music (discontinued)"),
     # Sony apps ported to custom ROMs and Sony phones
-    "com.sonyericsson.music",
-    "com.sonyericsson.video",
-    "com.sonyericsson.organizer",
-    "com.sonyericsson.musicvisualizer",
-    "com.sonyericsson.advancedwidget.clock",
-    "com.sonyericsson.advancedwidget.music",
-    "com.sonymobile.notes",
-    "com.sonymobile.tasks",
-    "com.sony.walkman.wmsetup2",
+    pkg("com.sonyericsson.music", "Sony Music"),
+    pkg("com.sonyericsson.video", "Sony Video"),
+    pkg("com.sonyericsson.organizer", "Sony Organizer"),
+    pkg("com.sonyericsson.musicvisualizer", "Sony music visualizer"),
+    pkg("com.sonyericsson.advancedwidget.clock", "Sony clock widget"),
+    pkg("com.sonyericsson.advancedwidget.music", "Sony music widget"),
+    pkg("com.sonymobile.notes", "Sony Notes"),
+    pkg("com.sonymobile.tasks", "Sony Tasks"),
+    pkg("com.sony.walkman.wmsetup2", "Sony Walkman setup"),
     # CyanogenMod extras
-    "com.cyanogenmod.account",             # CyanogenMod account sync
-    "com.cyanogenmod.lockclock",           # clock widget
-    "org.cyanogenmod.theme.chooser",       # theme chooser
-    "org.cyanogenmod.themes.provider",     # theme provider
+    pkg("com.cyanogenmod.account", "CyanogenMod account sync"),
+    pkg("com.cyanogenmod.lockclock", "CyanogenMod clock widget"),
+    pkg("org.cyanogenmod.theme.chooser", "CyanogenMod theme chooser"),
+    pkg("org.cyanogenmod.themes.provider", "CyanogenMod theme provider"),
 ]
 # Google apps removed only with --cloud (all devices)
 COMMON_CLOUD_PACKAGES = [
-    "com.google.android.apps.uploader",    # Google Photos uploader (old Picasa sync)
-    "com.google.android.apps.restore",     # restore from Google backup during setup
+    pkg("com.google.android.apps.uploader", "Google Photos uploader (old Picasa sync)"),
+    pkg("com.google.android.apps.restore", "Restore from Google backup"),
 ]
 
 # Location settings, only changed with --location-device-only (trade-off: less accurate location)
@@ -200,49 +212,49 @@ VENDOR_PROFILES = {
             ("system", "nearby_scanning_enabled", "0"),
         ],
         "packages": [
-            "com.samsung.android.rubin.app",       # Customization Service (user profiling)
-            "com.samsung.android.dqagent",         # Device Quality Agent (telemetry)
-            "com.samsung.android.app.spage",       # Samsung Free / news feed
-            "com.samsung.android.mapsagent",       # Samsung app recommendations / tracking
-            "com.aura.oobe.samsung",               # AppCloud (installs bloatware unasked)
-            "com.sec.android.diagmonagent",        # DiagMonAgent (error reports to Samsung)
-            "com.samsung.android.da.daagent",      # Device Analytics Agent (usage data to Samsung)
-            "com.samsung.android.knox.analytics.uploader",  # Knox analytics upload (telemetry)
+            pkg("com.samsung.android.rubin.app", "Customization Service: usage profiling"),
+            pkg("com.samsung.android.dqagent", "Device Quality Agent: telemetry"),
+            pkg("com.samsung.android.app.spage", "Samsung Free: news/ads feed"),
+            pkg("com.samsung.android.mapsagent", "Samsung location agent"),
+            pkg("com.aura.oobe.samsung", "AppCloud: installs promoted apps"),
+            pkg("com.sec.android.diagmonagent", "DiagMonAgent: error reports to Samsung"),
+            pkg("com.samsung.android.da.daagent", "Device Analytics Agent: usage data to Samsung"),
+            pkg("com.samsung.android.knox.analytics.uploader", "Knox analytics: telemetry to Samsung"),
         ],
         "optional_packages": [
-            "com.samsung.android.bixby.agent",     # Bixby (if only Google Assistant is used)
-            "com.microsoft.appmanager",            # Link to Windows (SMS/contacts/mic access)
-            "com.sec.android.app.kidshome",        # Samsung Kids (kids mode)
-            "com.samsung.android.kidsinstaller",   # Samsung Kids app installer
-            "com.samsung.android.stickercenter",   # sticker store
-            "com.samsung.android.app.dressroom",   # AR Emoji avatar outfits
-            "com.samsung.android.aremoji",         # AR Emoji
-            "com.samsung.android.game.gos",        # Game Optimizing Service
-            "com.samsung.android.game.gametools",  # Game Tools (game launcher panel)
-            "com.samsung.android.warrantycare",    # warranty and care service
-            "com.samsung.android.app.parentalcare",  # Parental care (kids' usage limits)
-            "com.samsung.android.smartswitchassistant",  # Smart Switch assistant
-            "com.sec.android.easyMover",           # Smart Switch (phone-to-phone transfer)
-            "com.samsung.android.app.taskedge",    # Edge panel tasks
-            "com.samsung.android.app.clipboardedge",  # Edge panel clipboard
-            "com.samsung.android.forest",          # Digital Wellbeing "Forest"
-            "com.samsung.android.themestore",      # Galaxy Themes store
-            "com.samsung.android.game.gamehome",   # Game Launcher
-            "com.samsung.android.widget.pictureframe",  # Picture frame widget
-            "com.samsung.android.wallpaper.live",  # live wallpapers service
-            "com.samsung.storyservice",            # Story video service
-            "com.samsung.android.allshare.service.mediashare",  # Smart View (screen casting)
-            "com.samsung.android.service.peoplestripe",  # People edge panel
-            "com.sec.android.app.quicktool",       # Samsung Quick Tool (purpose not verified)
-            "com.samsung.android.app.sketchbook",  # Sketchbook drawing app
-            "com.sec.android.app.desktoplauncher",  # DeX desktop launcher
-            "com.sec.android.autodoodle.service",  # Auto Doodle (automatic drawings)
-            "com.samsung.android.app.dofviewer",   # depth-of-field viewer
-            "com.sec.android.app.soundalive",      # SoundAlive equalizer
-            "com.samsung.android.video",           # Samsung video player
-            "com.samsung.android.app.smartcapture",  # Smart Capture screenshot tools
-            "com.samsung.android.app.reminder",    # Samsung Reminder
-            "com.samsung.android.app.camera.sticker.facearavatar.preload",  # AR avatar stickers (AR Emoji)
+            pkg("com.samsung.android.bixby.agent", "Bixby voice assistant"),
+            pkg("com.microsoft.appmanager", "Link to Windows"),
+            pkg("com.sec.android.app.kidshome", "Samsung Kids"),
+            pkg("com.samsung.android.kidsinstaller", "Samsung Kids installer"),
+            pkg("com.samsung.android.stickercenter", "sticker store"),
+            pkg("com.samsung.android.app.dressroom", "AR Emoji avatar outfits"),
+            pkg("com.samsung.android.aremoji", "AR Emoji"),
+            pkg("com.samsung.android.game.gos", "Game Optimizing Service"),
+            pkg("com.samsung.android.game.gametools", "Game Tools launcher panel"),
+            pkg("com.samsung.android.warrantycare", "Warranty and care service"),
+            pkg("com.samsung.android.app.parentalcare", "Parental care: kids' usage limits"),
+            pkg("com.samsung.android.smartswitchassistant", "Smart Switch assistant"),
+            pkg("com.sec.android.easyMover", "Smart Switch: phone-to-phone transfer"),
+            pkg("com.samsung.android.app.taskedge", "Edge panel tasks"),
+            pkg("com.samsung.android.app.clipboardedge", "Edge panel clipboard"),
+            pkg("com.samsung.android.forest", "Digital Wellbeing: Forest"),
+            pkg("com.samsung.android.themestore", "Galaxy Themes store"),
+            pkg("com.samsung.android.game.gamehome", "Game Launcher"),
+            pkg("com.samsung.android.widget.pictureframe", "Picture frame widget"),
+            pkg("com.samsung.android.wallpaper.live", "Live wallpapers service"),
+            pkg("com.samsung.storyservice", "Story video service"),
+            pkg("com.samsung.android.allshare.service.mediashare", "Smart View screen casting"),
+            pkg("com.samsung.android.service.peoplestripe", "People edge panel"),
+            pkg("com.sec.android.app.quicktool", "Samsung Quick Tool"),
+            pkg("com.samsung.android.app.sketchbook", "Sketchbook drawing app"),
+            pkg("com.sec.android.app.desktoplauncher", "DeX desktop launcher"),
+            pkg("com.sec.android.autodoodle.service", "Auto Doodle: automatic drawings"),
+            pkg("com.samsung.android.app.dofviewer", "Depth-of-field viewer"),
+            pkg("com.sec.android.app.soundalive", "SoundAlive equalizer"),
+            pkg("com.samsung.android.video", "Samsung video player"),
+            pkg("com.samsung.android.app.smartcapture", "Smart Capture screenshot tools"),
+            pkg("com.samsung.android.app.reminder", "Samsung Reminder"),
+            pkg("com.samsung.android.app.camera.sticker.facearavatar.preload", "AR avatar stickers (AR Emoji)"),
         ],
         # --ai: Galaxy AI. Settings are only written if the key exists on the device.
         "ai_settings": [
@@ -253,17 +265,17 @@ VENDOR_PROFILES = {
             ("system", "voip_translator_enable", "0"),                # translation in VoIP calls
         ],
         "ai_packages": [
-            "com.samsung.android.aicore",          # Samsung AI Core (Galaxy AI)
-            "com.samsung.android.smartsuggestions",  # Smart suggestions (reads notifications)
-            "com.samsung.android.app.interpreter",   # Interpreter (live translation)
-            "com.samsung.android.callassistant",     # Call Assist / Bixby Text Call
-            "com.samsung.android.visionintelligence",  # Bixby Vision
-            "com.samsung.android.bixbyvision.framework",
-            "com.samsung.android.vision.model",      # vision AI models
-            "com.samsung.android.bixby.agent",       # Bixby
-            "com.samsung.android.bixby.wakeup",      # "Hi Bixby" voice wake-up
+            pkg("com.samsung.android.aicore", "Samsung AI Core (Galaxy AI)"),
+            pkg("com.samsung.android.smartsuggestions", "Smart suggestions: reads notifications"),
+            pkg("com.samsung.android.app.interpreter", "Interpreter: live translation"),
+            pkg("com.samsung.android.callassistant", "Call Assist / Text Call"),
+            pkg("com.samsung.android.visionintelligence", "Bixby Vision"),
+            pkg("com.samsung.android.bixbyvision.framework", "Bixby Vision framework"),
+            pkg("com.samsung.android.vision.model", "on-device vision AI models"),
+            pkg("com.samsung.android.bixby.agent", "Bixby voice assistant"),
+            pkg("com.samsung.android.bixby.wakeup", "\"Hi Bixby\" voice wake-up"),
             "com.samsung.android.bixby.ondevice.*",  # Bixby on-device language packs
-            "com.samsung.android.intellivoiceservice",  # Bixby voice processing engine
+            pkg("com.samsung.android.intellivoiceservice", "Bixby voice processing engine"),
         ],
         # --cloud: settings only written if the key exists on the device
         "cloud_settings": [
@@ -272,17 +284,17 @@ VENDOR_PROFILES = {
             ("secure", "samsungflow_clipboard_sync_state", "0"),  # clipboard sync via Samsung Flow
         ],
         "cloud_packages": [
-            "com.samsung.android.scloud",          # Samsung Cloud (backup/sync)
-            "com.microsoft.skydrive",              # OneDrive (preinstalled on Samsung)
+            pkg("com.samsung.android.scloud", "Samsung Cloud"),
+            pkg("com.microsoft.skydrive", "OneDrive"),
         ],
     },
     "xiaomi": {
         "marker_packages": ["com.miui.home", "com.miui.securitycenter"],
         "settings": [],
         "packages": [
-            "com.miui.analytics",                  # MIUI Analytics (telemetry)
-            "com.miui.msa.global",                 # MIUI System Ads
-            "com.miui.daemon",                     # MiuiDaemon (usage statistics)
+            pkg("com.miui.analytics", "MIUI Analytics: telemetry"),
+            pkg("com.miui.msa.global", "MIUI System Ads"),
+            pkg("com.miui.daemon", "MiuiDaemon: usage statistics"),
         ],
         "optional_packages": [],
     },
@@ -290,213 +302,72 @@ VENDOR_PROFILES = {
         "marker_packages": ["com.freemeimp.factory", "com.teksun.newfactorytest"],
         "settings": [],
         "packages": [
-            "com.mediatek.engineermode",           # MediaTek engineer menu (hardware debug tool)
-            "com.freemeimp.factory",               # factory test app
-            "com.teksun.newfactorytest",           # factory test app
-            "com.sagatest",                        # test app left on the firmware
-            "com.debug.loggerui",                  # debug logger UI
+            pkg("com.mediatek.engineermode", "MediaTek engineer menu"),
+            pkg("com.freemeimp.factory", "Factory test app"),
+            pkg("com.teksun.newfactorytest", "Factory test app"),
+            pkg("com.sagatest", "Test app"),
+            pkg("com.debug.loggerui", "Debug logger UI"),
         ],
         "optional_packages": [
-            "com.mediatek.ygps",                   # MediaTek GPS test tool
-            "com.mediatek.lbs.em2.ui",             # MediaTek location engineering UI
-            "com.google.android.apps.wellbeing",   # Digital Wellbeing
-            "com.google.android.printservice.recommendation",  # print service suggestions
-            "com.android.traceur",                 # system tracing tool
+            pkg("com.mediatek.ygps", "MediaTek GPS test tool"),
+            pkg("com.mediatek.lbs.em2.ui", "MediaTek location engineering UI"),
+            pkg("com.google.android.apps.wellbeing", "Digital Wellbeing"),
+            pkg("com.google.android.printservice.recommendation", "Print service suggestions"),
+            pkg("com.android.traceur", "System tracing tool"),
         ],
     },
     "huawei": {
         "marker_packages": ["com.huawei.systemmanager", "com.huawei.android.launcher"],
         "settings": [],
         "packages": [
-            "com.huawei.hiview",                   # diagnostic data collection and upload
-            "com.huawei.hiviewtunnel",             # tunnel that sends diagnostic data to Huawei
-            "com.huawei.mmitest",                  # factory hardware test
+            pkg("com.huawei.hiview", "Huawei diagnostic data upload"),
+            pkg("com.huawei.hiviewtunnel", "Huawei diagnostic data tunnel"),
+            pkg("com.huawei.mmitest", "Factory hardware test"),
         ],
         "optional_packages": [
-            "com.huawei.himovie.overseas",         # Huawei Video
-            "com.huawei.appmarket",                # AppGallery
-            "com.huawei.hicard",                   # HiCard service suggestions
-            "com.huawei.recsys",                   # recommendation service
-            "com.huawei.behaviorauth",             # behaviour-based authentication (may affect unlocking)
-            "com.huawei.totemweather",             # Huawei Weather
-            "com.huawei.gameassistant",            # game assistant
-            "com.huawei.screenrecorder",           # screen recorder
-            "com.huawei.search",                   # Huawei search
-            "com.huawei.scanner",                  # document scanner
-            "com.huawei.android.FMRadio",          # FM radio
-            "com.huawei.compass",                  # compass
-            "com.huawei.android.FloatTasks",       # floating tasks
-            "com.huawei.HwMultiScreenShot",        # multi-screen screenshot
-            "com.huawei.android.tips",             # Tips app
-            "com.huawei.android.hwupgradeguide",   # upgrade guide
-            "com.huawei.hwstartupguide",           # startup guide
-            "com.huawei.android.hwouc",            # online upgrade check
-            "com.huawei.phoneservice",             # support service
-            "com.huawei.hwdetectrepair",           # hardware diagnostics
-            "com.huawei.synergy",                  # multi-device sync
-            "com.huawei.android.pushagent",        # Huawei push (breaks push for Huawei apps)
-            "com.huawei.autoinstallapkfrommcc",    # installs apps based on carrier/region
-            "com.example.android.notepad",         # sample notepad app
+            pkg("com.huawei.himovie.overseas", "Huawei Video"),
+            pkg("com.huawei.appmarket", "AppGallery"),
+            pkg("com.huawei.hicard", "HiCard service suggestions"),
+            pkg("com.huawei.recsys", "Huawei recommendation service"),
+            pkg("com.huawei.behaviorauth", "Behaviour-based authentication (may affect unlocking)"),
+            pkg("com.huawei.totemweather", "Huawei Weather"),
+            pkg("com.huawei.gameassistant", "Game assistant"),
+            pkg("com.huawei.screenrecorder", "Screen recorder"),
+            pkg("com.huawei.search", "Huawei search"),
+            pkg("com.huawei.scanner", "Document scanner"),
+            pkg("com.huawei.android.FMRadio", "FM radio"),
+            pkg("com.huawei.compass", "Compass"),
+            pkg("com.huawei.android.FloatTasks", "Floating tasks"),
+            pkg("com.huawei.HwMultiScreenShot", "Multi-screen screenshot"),
+            pkg("com.huawei.android.tips", "Tips app"),
+            pkg("com.huawei.android.hwupgradeguide", "Upgrade guide"),
+            pkg("com.huawei.hwstartupguide", "Startup guide"),
+            pkg("com.huawei.android.hwouc", "Online upgrade check"),
+            pkg("com.huawei.phoneservice", "Huawei support service"),
+            pkg("com.huawei.hwdetectrepair", "Hardware diagnostics"),
+            pkg("com.huawei.synergy", "Multi-device sync"),
+            pkg("com.huawei.android.pushagent", "Huawei push service"),
+            pkg("com.huawei.autoinstallapkfrommcc", "Installs apps by carrier/region"),
+            pkg("com.example.android.notepad", "Sample notepad app"),
         ],
         "ai_packages": [
-            "com.huawei.hiai",                     # HiAI AI engine
-            "com.huawei.hitouch",                  # smart taps and text actions
-            "com.huawei.intelligent",              # intelligent assistant
-            "com.huawei.hiaction",                 # action suggestions
+            pkg("com.huawei.hiai", "HiAI AI engine"),
+            pkg("com.huawei.hitouch", "Smart taps and text actions"),
+            pkg("com.huawei.intelligent", "Intelligent assistant"),
+            pkg("com.huawei.hiaction", "Action suggestions"),
         ],
         "cloud_packages": [
-            "com.huawei.hicloud",                  # Huawei Cloud
-            "com.huawei.KoBackup",                 # backup
-            "com.huawei.hidisk",                   # Huawei Drive
-            "com.hicloud.android.clone",           # Phone Clone (cloud transfer)
+            pkg("com.huawei.hicloud", "Huawei Cloud"),
+            pkg("com.huawei.KoBackup", "Huawei backup"),
+            pkg("com.huawei.hidisk", "Huawei Drive"),
+            pkg("com.hicloud.android.clone", "Phone Clone"),
         ],
     },
 }
 # Short labels shown next to package names in the output (details: README).
 # Keys ending in "." match every package with that prefix.
-PACKAGE_LABELS = {
-    "com.google.android.safetycore": "SafetyCore: scans content on the device",
-    "com.google.android.feedback": "Google Feedback: crash reports to Google",
-    "com.google.mainline.telemetry": "Google system update telemetry",
-    "com.google.android.partnersetup": "Google Partner Setup: partner IDs",
-    "com.facebook.services": "Facebook Services: background data",
-    "com.facebook.system": "Facebook App Installer",
-    "com.facebook.appmanager": "Facebook App Manager",
-    "com.samsung.android.rubin.app": "Customization Service: usage profiling",
-    "com.samsung.android.dqagent": "Device Quality Agent: telemetry",
-    "com.samsung.android.app.spage": "Samsung Free: news/ads feed",
-    "com.samsung.android.mapsagent": "Samsung location agent",
-    "com.aura.oobe.samsung": "AppCloud: installs promoted apps",
-    "com.sec.android.diagmonagent": "DiagMonAgent: error reports to Samsung",
-    "com.samsung.android.bixby.agent": "Bixby voice assistant",
-    "com.microsoft.appmanager": "Link to Windows",
-    "com.miui.analytics": "MIUI Analytics: telemetry",
-    "com.miui.msa.global": "MIUI System Ads",
-    "com.miui.daemon": "MiuiDaemon: usage statistics",
-    "com.google.android.apps.bard": "Gemini",
-    "com.google.android.aicore": "AICore: on-device Gemini Nano",
-    "com.google.android.apps.aiwallpapers": "AI wallpapers",
-    "com.google.android.as": "Android System Intelligence",
-    "com.google.android.as.oss": "Private Compute Services",
-    "com.samsung.android.aicore": "Samsung AI Core (Galaxy AI)",
-    "com.samsung.android.smartsuggestions": "Smart suggestions: reads notifications",
-    "com.samsung.android.app.interpreter": "Interpreter: live translation",
-    "com.samsung.android.callassistant": "Call Assist / Text Call",
-    "com.samsung.android.visionintelligence": "Bixby Vision",
-    "com.samsung.android.bixbyvision.framework": "Bixby Vision framework",
-    "com.samsung.android.vision.model": "on-device vision AI models",
-    "com.samsung.android.bixby.wakeup": "\"Hi Bixby\" voice wake-up",
-    "com.samsung.android.bixby.ondevice.": "Bixby language pack",
-    "com.samsung.android.scloud": "Samsung Cloud",
-    "com.microsoft.skydrive": "OneDrive",
-    "com.google.android.contactkeys": "Android System Key Verifier",
-    "com.samsung.android.app.omcagent": "carrier/region app installer",
-    "com.google.android.apps.turbo": "Device Health Services: device telemetry",
-    "com.google.ar.lens": "Google Lens: AI visual search",
-    "com.samsung.android.da.daagent": "Device Analytics Agent: usage data to Samsung",
-    "com.samsung.android.knox.analytics.uploader": "Knox analytics: telemetry to Samsung",
-    "com.samsung.android.intellivoiceservice": "Bixby voice processing engine",
-    "com.sec.android.app.kidshome": "Samsung Kids",
-    "com.samsung.android.kidsinstaller": "Samsung Kids installer",
-    "com.samsung.android.stickercenter": "sticker store",
-    "com.samsung.android.app.dressroom": "AR Emoji avatar outfits",
-    "com.samsung.android.aremoji": "AR Emoji",
-    "com.samsung.android.game.gos": "Game Optimizing Service",
-    "com.samsung.android.game.gametools": "Game Tools launcher panel",
-    "com.samsung.android.warrantycare": "Warranty and care service",
-    "com.samsung.android.app.parentalcare": "Parental care: kids' usage limits",
-    "com.samsung.android.smartswitchassistant": "Smart Switch assistant",
-    "com.sec.android.easyMover": "Smart Switch: phone-to-phone transfer",
-    "com.samsung.android.app.taskedge": "Edge panel tasks",
-    "com.samsung.android.app.clipboardedge": "Edge panel clipboard",
-    "com.samsung.android.forest": "Digital Wellbeing: Forest",
-    "com.google.android.videos": "Google TV: movies and shows",
-    "com.google.android.apps.tachyon": "Google Meet / Duo calling",
-    "com.google.android.apps.restore": "Restore from Google backup",
-    "com.samsung.android.themestore": "Galaxy Themes store",
-    "com.samsung.android.game.gamehome": "Game Launcher",
-    "com.samsung.android.widget.pictureframe": "Picture frame widget",
-    "com.samsung.android.wallpaper.live": "Live wallpapers service",
-    "com.samsung.storyservice": "Story video service",
-    "com.samsung.android.allshare.service.mediashare": "Smart View screen casting",
-    "com.samsung.android.service.peoplestripe": "People edge panel",
-    "com.sec.android.app.quicktool": "Samsung Quick Tool",
-    "com.samsung.android.app.sketchbook": "Sketchbook drawing app",
-    "com.sec.android.app.desktoplauncher": "DeX desktop launcher",
-    "com.sec.android.autodoodle.service": "Auto Doodle: automatic drawings",
-    "com.samsung.android.app.dofviewer": "Depth-of-field viewer",
-    "com.sec.android.app.soundalive": "SoundAlive equalizer",
-    "com.samsung.android.video": "Samsung video player",
-    "com.samsung.android.app.smartcapture": "Smart Capture screenshot tools",
-    "com.samsung.android.app.reminder": "Samsung Reminder",
-    "com.samsung.android.app.camera.sticker.facearavatar.preload": "AR avatar stickers (AR Emoji)",
-    "com.mediatek.engineermode": "MediaTek engineer menu",
-    "com.freemeimp.factory": "Factory test app",
-    "com.teksun.newfactorytest": "Factory test app",
-    "com.sagatest": "Test app",
-    "com.debug.loggerui": "Debug logger UI",
-    "com.mediatek.ygps": "MediaTek GPS test tool",
-    "com.mediatek.lbs.em2.ui": "MediaTek location engineering UI",
-    "com.google.android.apps.wellbeing": "Digital Wellbeing",
-    "com.google.android.printservice.recommendation": "Print service suggestions",
-    "com.android.traceur": "System tracing tool",
-    "com.google.android.apps.magazines": "Google News",
-    "com.google.android.apps.plus": "Google+ (discontinued)",
-    "com.google.android.talk": "Hangouts (old)",
-    "com.google.android.music": "Play Music (discontinued)",
-    "com.sonyericsson.music": "Sony Music",
-    "com.sonyericsson.video": "Sony Video",
-    "com.sonyericsson.organizer": "Sony Organizer",
-    "com.sonyericsson.musicvisualizer": "Sony music visualizer",
-    "com.sonyericsson.advancedwidget.clock": "Sony clock widget",
-    "com.sonyericsson.advancedwidget.music": "Sony music widget",
-    "com.sonymobile.notes": "Sony Notes",
-    "com.sonymobile.tasks": "Sony Tasks",
-    "com.sony.walkman.wmsetup2": "Sony Walkman setup",
-    "com.cyanogenmod.account": "CyanogenMod account sync",
-    "com.cyanogenmod.lockclock": "CyanogenMod clock widget",
-    "org.cyanogenmod.theme.chooser": "CyanogenMod theme chooser",
-    "org.cyanogenmod.themes.provider": "CyanogenMod theme provider",
-    "com.google.android.apps.genie.geniewidget": "Google Now widget (Genie)",
-    "com.google.android.ears": "Google Now speech recognition",
-    "com.google.android.apps.uploader": "Google Photos uploader (old Picasa sync)",
-    "com.huawei.hiview": "Huawei diagnostic data upload",
-    "com.huawei.hiviewtunnel": "Huawei diagnostic data tunnel",
-    "com.huawei.mmitest": "Factory hardware test",
-    "com.huawei.himovie.overseas": "Huawei Video",
-    "com.huawei.appmarket": "AppGallery",
-    "com.huawei.hicard": "HiCard service suggestions",
-    "com.huawei.recsys": "Huawei recommendation service",
-    "com.huawei.behaviorauth": "Behaviour-based authentication (may affect unlocking)",
-    "com.huawei.totemweather": "Huawei Weather",
-    "com.huawei.gameassistant": "Game assistant",
-    "com.huawei.screenrecorder": "Screen recorder",
-    "com.huawei.search": "Huawei search",
-    "com.huawei.scanner": "Document scanner",
-    "com.huawei.android.FMRadio": "FM radio",
-    "com.huawei.compass": "Compass",
-    "com.huawei.android.FloatTasks": "Floating tasks",
-    "com.huawei.HwMultiScreenShot": "Multi-screen screenshot",
-    "com.huawei.android.tips": "Tips app",
-    "com.huawei.android.hwupgradeguide": "Upgrade guide",
-    "com.huawei.hwstartupguide": "Startup guide",
-    "com.huawei.android.hwouc": "Online upgrade check",
-    "com.huawei.phoneservice": "Huawei support service",
-    "com.huawei.hwdetectrepair": "Hardware diagnostics",
-    "com.huawei.synergy": "Multi-device sync",
-    "com.huawei.android.pushagent": "Huawei push service",
-    "com.huawei.autoinstallapkfrommcc": "Installs apps by carrier/region",
-    "com.example.android.notepad": "Sample notepad app",
-    "com.huawei.hiai": "HiAI AI engine",
-    "com.huawei.hitouch": "Smart taps and text actions",
-    "com.huawei.intelligent": "Intelligent assistant",
-    "com.huawei.hiaction": "Action suggestions",
-    "com.huawei.hicloud": "Huawei Cloud",
-    "com.huawei.KoBackup": "Huawei backup",
-    "com.huawei.hidisk": "Huawei Drive",
-    "com.hicloud.android.clone": "Phone Clone",
-}
 
+PACKAGE_LABELS["com.samsung.android.bixby.ondevice."] = "Bixby language pack"
 
 def pkg_name(pkg: str) -> str:
     """Package name with its short label, e.g. 'com.x.y (What it is)'."""
@@ -520,8 +391,8 @@ EXTRA_MANAGED_SETTINGS = [
     ("system", "marketing_info_agree"),
 ]
 EXTRA_MANAGED_PACKAGES = [
-    "com.google.android.contactkeys",
-    "com.samsung.android.app.omcagent",
+    pkg("com.google.android.contactkeys", "Android System Key Verifier"),
+    pkg("com.samsung.android.app.omcagent", "carrier/region app installer"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -659,7 +530,7 @@ def find_adb() -> str:
     sys.exit(1)
 
 
-ADB = find_adb()
+ADB = ""  # set by main(); importing the module must not need adb
 SERIAL: str | None = None  # set after device selection
 LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
 
@@ -723,10 +594,18 @@ SENSITIVE_APP_OPS = {  # appops name -> what it allows (shown by --audit)
 }
 
 
-def sensitive_access(pkg: str) -> list[str]:
-    """Human names of the sensitive operations an app is allowed (appops 'allow' or 'foreground')."""
-    _, out, _ = run_adb(["shell", "cmd", "appops", "get", pkg])
-    return parse_sensitive_access(out)
+def sensitive_access_many(pkgs: list[str]) -> dict[str, list[str]]:
+    """sensitive_access for many apps: one adb call per 50 apps instead of one per app."""
+    result: dict[str, list[str]] = {}
+    marker = "----- next app -----"
+    valid = [p for p in pkgs if PACKAGE_NAME_RE.match(p)]  # names go to the device's shell
+    for i in range(0, len(valid), 50):
+        chunk = valid[i:i + 50]
+        script = "; ".join(f"cmd appops get {p}; echo {marker}" for p in chunk)
+        _, out, _ = run_adb(["shell", script])
+        for pkg, block in zip(chunk, out.split(marker)):
+            result[pkg] = parse_sensitive_access(block)
+    return result
 
 
 def parse_sensitive_access(out: str) -> list[str]:
@@ -1128,11 +1007,12 @@ def restore_settings(backup: dict, restore_all: bool, apply: bool) -> tuple[int,
                 print(f"[DRY]  {desc}")
                 continue
             code, _, err = run_adb(["shell", cmd])
-            if code == 0 and not err:
+            want = target if in_backup else None
+            if code == 0 and not err and get_setting(ns, key) == want:
                 print(f"[SET]  {desc}")
             else:
                 failed += 1
-                print(f"[WARN] Could not restore {ns}/{key}: {err}")
+                print(f"[WARN] Could not restore {ns}/{key}: {err or 'the value did not change'}")
 
     # Notification access revoked with --revoke-notifications: grant it back via the
     # notification service (writing the setting alone isn't reliably picked up)
@@ -1457,7 +1337,14 @@ def disable_adb(over_network: bool) -> None:
 
 def existing_settings(settings: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
     """Keep only settings whose key exists on the device (avoids creating stray keys)."""
-    return [s for s in settings if get_setting(s[0], s[1]) is not None]
+    present: dict[str, dict[str, str | None]] = {}
+    for ns in {s[0] for s in settings}:
+        code, out, err = run_adb(["shell", "settings", "list", ns])
+        if code != 0:
+            print(f"[ERROR] Could not read current settings ({ns}): {err}")
+            sys.exit(1)
+        present[ns] = parse_settings_lines(out.splitlines())
+    return [s for s in settings if present[s[0]].get(s[1]) is not None]
 
 
 def google_backup_enabled() -> bool:
@@ -1554,13 +1441,16 @@ PRIVATE_DNS_RE = re.compile(
     r"PrivateDnsServerName: (\S+)(?: ValidatedPrivateDnsAddresses: \[([^\]]*)\])?")
 
 
-def verify_private_dns(host: str, timeout: int = 15) -> None:
-    """Check that Android actually reached the Private DNS provider on a connected network."""
+def verify_private_dns(host: str, timeout: int = 15) -> bool:
+    """Check that Android actually reached the Private DNS provider on a connected network.
+
+    Returns False only if the provider is in use but could not be reached.
+    """
     print("\n--- Checking Private DNS ---")
     if get_setting("global", "private_dns_mode") != "hostname" \
             or get_setting("global", "private_dns_specifier") != host:
         print(f"[SKIP] Private DNS is not set to {host} yet (use --run to set it)")
-        return
+        return True
 
     deadline = time.monotonic() + timeout
     while True:
@@ -1569,7 +1459,7 @@ def verify_private_dns(host: str, timeout: int = 15) -> None:
         validated = sorted({a.strip() for _, addrs in found for a in addrs.split(",") if a.strip()})
         if validated:
             print(f"[OK]   {host} is in use and validated ({', '.join(validated)})")
-            return
+            return True
         if time.monotonic() >= deadline:
             break
         time.sleep(3)  # validation takes a few seconds after the setting changes
@@ -1577,10 +1467,26 @@ def verify_private_dns(host: str, timeout: int = 15) -> None:
     if not found:
         print("[WARN] No connected network uses Private DNS right now. "
               "Connect to Wi-Fi or mobile data and run the script again to check.")
-    else:
-        print(f"[WARN] {host} could not be reached. In this mode DNS lookups fail, so the "
-              "device may have no internet. Check the hostname, or restore a backup "
-              "(--restore) to undo it.")
+        return True
+    print(f"[WARN] {host} could not be reached. In this mode DNS lookups fail, so the "
+          "device may have no internet.")
+    return False
+
+
+def undo_private_dns(before: tuple[str | None, str | None]) -> None:
+    """Put the Private DNS mode and provider back to their values from before this run."""
+    mode, specifier = before
+    for key, value in (("private_dns_mode", mode), ("private_dns_specifier", specifier)):
+        if value is None:
+            code, _, err = run_adb(["shell", f"settings delete global {key}"])
+            desc = "not set"
+        else:
+            code, _, err = run_adb(["shell", f"settings put global {key} {shlex.quote(value)}"])
+            desc = value
+        if code == 0:
+            print(f"[SET]  global/{key} set back to {desc}")
+        else:
+            print(f"[WARN] global/{key} could not be set back: {err}")
 
 
 def remove_packages(packages: list[str], installed: set[str], disabled: set[str],
@@ -1827,8 +1733,25 @@ def battery_recommendations(dev: dict[str, str], battery_flag: bool) -> list[str
 # ---------------------------------------------------------------------------
 
 
+REPORTS_TO_KEEP = 20  # older --report files are deleted; settings backups are kept
+
+
+def prune_reports() -> int:
+    """Delete the oldest report_*.txt files in logs/ beyond REPORTS_TO_KEEP. Returns the count."""
+    names = sorted(n for n in os.listdir(LOG_DIR) if re.fullmatch(r"report_\d{8}_\d{6}\.txt", n))
+    removed = 0
+    for name in names[:-REPORTS_TO_KEEP]:
+        try:
+            os.remove(os.path.join(LOG_DIR, name))
+            removed += 1
+        except OSError:
+            pass
+    return removed
+
+
 def main() -> None:
-    global SERIAL
+    global ADB, SERIAL
+    ADB = find_adb()
     parser = argparse.ArgumentParser(
         prog="android_debloater.py",
         description="Privacy debloater for Android phones and tablets, over adb (no root needed).\n"
@@ -1946,8 +1869,13 @@ def main() -> None:
         args.no_color = True  # the report file must be plain text
         os.makedirs(LOG_DIR, exist_ok=True)
         report_path = os.path.join(LOG_DIR, f"report_{datetime.now():%Y%m%d_%H%M%S}.txt")
-        sys.stdout = TeeStream(sys.stdout, open(report_path, "w", encoding="utf-8"))
+        report_file = open(report_path, "w", encoding="utf-8")
+        atexit.register(report_file.close)
+        sys.stdout = TeeStream(sys.stdout, report_file)
         print(f"[INFO] Report is saved to: {report_path}")
+        removed = prune_reports()
+        if removed:
+            print(f"[INFO] Deleted {removed} old report(s); the newest {REPORTS_TO_KEEP} are kept.")
     setup_colors(args.no_color)
     if args.screen_timeout is not None and args.screen_timeout < 10:
         parser.error("--screen-timeout must be at least 10 seconds")
@@ -2043,11 +1971,16 @@ def main() -> None:
 
     disabled = list_packages("-d")
 
+    # Remember the Private DNS values from before this run, to undo them if the check fails
+    dns_before = None
+    if private_dns and apply:
+        dns_before = (get_setting("global", "private_dns_mode"),
+                      get_setting("global", "private_dns_specifier"))
     apply_privacy_settings(settings, apply)
     if args.cloud:
         apply_google_backup_off(apply)
-    if private_dns:
-        verify_private_dns(private_dns)
+    if private_dns and not verify_private_dns(private_dns) and apply:
+        undo_private_dns(dns_before)
     if args.revoke_notifications:
         revoke_notification_access(
             [p.strip() for p in args.revoke_notifications.split(",") if p.strip()], apply)
@@ -2087,8 +2020,10 @@ def main() -> None:
 
         print("\n--- Access granted to third-party apps ---")
         found = False
-        for pkg in sorted(list_packages("-3")):
-            access = sensitive_access(pkg)
+        apps = sorted(list_packages("-3"))
+        access_by_app = sensitive_access_many(apps)
+        for pkg in apps:
+            access = access_by_app.get(pkg, [])
             if access:
                 found = True
                 print(f"[INFO] {pkg}: {', '.join(access)}")

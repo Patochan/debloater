@@ -6,6 +6,7 @@ import argparse
 import contextlib
 import io
 import os
+import shlex
 import tempfile
 import unittest
 import unittest.mock
@@ -205,3 +206,106 @@ class ResolvePrivateDnsTest(unittest.TestCase):
 
     def test_empty_value_disables(self):
         self.assertIsNone(ad.resolve_private_dns("", False))
+
+
+class FakeAdb:
+    """Stand-in for run_adb: a phone with settings in memory (refuse=True: writes are ignored)."""
+
+    def __init__(self, settings, refuse=False):
+        self.settings = {ns: dict(v) for ns, v in settings.items()}
+        self.refuse = refuse
+        self.calls = []
+
+    def __call__(self, args):
+        self.calls.append(" ".join(args))
+        if args[:3] == ["shell", "settings", "list"]:
+            body = self.settings.get(args[3], {})
+            return 0, "\n".join(f"{k}={'null' if v is None else v}" for k, v in body.items()), ""
+        if args[:3] == ["shell", "settings", "get"] and len(args) == 5:
+            value = self.settings.get(args[3], {}).get(args[4])
+            return 0, "null" if value is None else value, ""
+        if len(args) == 2 and args[0] == "shell" and args[1].startswith("settings "):
+            if not self.refuse:
+                parts = shlex.split(args[1])
+                if parts[1] == "put":
+                    self.settings.setdefault(parts[2], {})[parts[3]] = parts[4]
+                elif parts[1] == "delete":
+                    self.settings.get(parts[2], {}).pop(parts[3], None)
+            return 0, "", ""
+        return 0, "", ""
+
+
+class RestoreSettingsTest(unittest.TestCase):
+    def _restore(self, backup, phone, refuse=False):
+        fake = FakeAdb(phone, refuse=refuse)
+        with unittest.mock.patch.object(ad, "run_adb", side_effect=fake), \
+                contextlib.redirect_stdout(io.StringIO()):
+            result = ad.restore_settings(
+                {"system": {}, "secure": {}, "global": {}, **backup}, restore_all=False, apply=True)
+        return fake, result
+
+    def test_user_setting_that_is_not_managed_is_never_deleted(self):
+        fake, _ = self._restore({}, {"secure": {"my_own_setting": "5"}})
+        self.assertFalse(any("delete" in c and "my_own_setting" in c for c in fake.calls))
+        self.assertEqual(fake.settings["secure"], {"my_own_setting": "5"})
+
+    def test_managed_setting_that_was_not_in_backup_is_deleted(self):
+        fake, _ = self._restore({}, {"global": {"private_dns_mode": "hostname"}})
+        self.assertNotIn("private_dns_mode", fake.settings["global"])
+
+    def test_write_that_does_not_stick_is_reported_as_failed(self):
+        _, (changed, failed) = self._restore(
+            {"global": {"multi_cb": "1"}}, {"global": {"multi_cb": "0"}}, refuse=True)
+        self.assertEqual(failed, 1)
+
+
+class SensitiveAccessManyTest(unittest.TestCase):
+    def test_each_app_gets_its_own_block(self):
+        out = ("Uid mode: CAMERA: allow\n----- next app -----\n"
+               "CAMERA: ignore\n----- next app -----\n")
+        with unittest.mock.patch.object(ad, "run_adb", return_value=(0, out, "")) as run:
+            result = ad.sensitive_access_many(["com.a.one", "com.b.two"])
+        self.assertEqual(result, {"com.a.one": ["camera"], "com.b.two": []})
+        self.assertIn("cmd appops get com.a.one", run.call_args[0][0][1])
+
+    def test_invalid_names_are_not_sent_to_the_shell(self):
+        with unittest.mock.patch.object(ad, "run_adb", return_value=(0, "", "")) as run:
+            result = ad.sensitive_access_many(["bad name; rm -rf /"])
+        run.assert_not_called()
+        self.assertEqual(result, {})
+
+
+class ExistingSettingsTest(unittest.TestCase):
+    def test_keeps_only_keys_that_exist(self):
+        fake = FakeAdb({"global": {"a": "1", "b": None}})
+        with unittest.mock.patch.object(ad, "run_adb", side_effect=fake):
+            kept = ad.existing_settings([("global", "a", "0"), ("global", "b", "0"),
+                                         ("global", "c", "0")])
+        self.assertEqual(kept, [("global", "a", "0")])
+        self.assertEqual(len([c for c in fake.calls if "settings list" in c]), 1)
+
+
+class UndoPrivateDnsTest(unittest.TestCase):
+    def test_previous_values_are_put_back_and_unset_ones_deleted(self):
+        fake = FakeAdb({"global": {"private_dns_mode": "hostname",
+                                   "private_dns_specifier": "dns.quad9.net"}})
+        with unittest.mock.patch.object(ad, "run_adb", side_effect=fake), \
+                contextlib.redirect_stdout(io.StringIO()):
+            ad.undo_private_dns(("opportunistic", None))
+        self.assertEqual(fake.settings["global"]["private_dns_mode"], "opportunistic")
+        self.assertNotIn("private_dns_specifier", fake.settings["global"])
+
+
+class PruneReportsTest(unittest.TestCase):
+    def test_only_the_oldest_reports_are_deleted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for i in range(22):
+                open(os.path.join(tmp, f"report_20260101_0000{i:02d}.txt"), "w").close()
+            open(os.path.join(tmp, "settings_backup_x_20260101_000000.txt"), "w").close()
+            with unittest.mock.patch.object(ad, "LOG_DIR", tmp):
+                removed = ad.prune_reports()
+            left = sorted(os.listdir(tmp))
+        self.assertEqual(removed, 2)
+        self.assertEqual(sum(n.startswith("report_") for n in left), ad.REPORTS_TO_KEEP)
+        self.assertIn("settings_backup_x_20260101_000000.txt", left)
+        self.assertNotIn("report_20260101_000000.txt", left)

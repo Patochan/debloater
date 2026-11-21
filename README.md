@@ -418,7 +418,7 @@ The vendor profile is chosen from `ro.product.manufacturer`. If none of the vend
 
 ## Report (`--report`)
 
-`--report` saves a copy of everything the run prints to `logs/report_<timestamp>.txt`, in plain text without colors. Use it to hand a client a record of what was changed on the device. It is saved for dry runs too, so you can keep the "before" report.
+`--report` saves a copy of everything the run prints to `logs/report_<timestamp>.txt`, in plain text without colors. Use it to hand a client a record of what was changed on the device. It is saved for dry runs too, so you can keep the "before" report. The newest 20 reports are kept and older ones are deleted; settings backups are never deleted, because `--restore` needs them.
 
 ```bash
 python android_debloater.py --run --ai --cloud --report
@@ -668,7 +668,7 @@ With a fixed provider, Android sends DNS lookups only to that provider. If it ca
 |---|---|
 | Provider reached and validated | `[OK]   dns.quad9.net is in use and validated (149.112.112.112, 9.9.9.9)` |
 | Not set yet (dry run) | `[SKIP] Private DNS is not set to dns.quad9.net yet (use --run to set it)` |
-| Provider not reachable | `[WARN] dns.quad9.net could not be reached. In this mode DNS lookups fail, so the device may have no internet. Check the hostname, or restore a backup (--restore) to undo it.` |
+| Provider not reachable | `[WARN] dns.quad9.net could not be reached. In this mode DNS lookups fail, so the device may have no internet.` followed by `[SET]  global/private_dns_mode set back to ...`: the script puts the previous Private DNS setting back. |
 | No network connected | `[WARN] No connected network uses Private DNS right now. Connect to Wi-Fi or mobile data and run the script again to check.` |
 
 Example run:
