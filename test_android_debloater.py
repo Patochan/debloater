@@ -76,6 +76,22 @@ class DisableAdbTest(unittest.TestCase):
         self.assertFalse(ad.is_network_serial("ABC123"))
 
 
+class PrivacySettingsTest(unittest.TestCase):
+    def test_reads_each_namespace_once_and_skips_matching_values(self):
+        calls = []
+
+        def fake_adb(args):
+            calls.append(args)
+            return 0, "a=1\nb=2", ""
+
+        with unittest.mock.patch.object(ad, "run_adb", side_effect=fake_adb), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            ad.apply_privacy_settings([("global", "a", "1"), ("global", "b", "3")], apply=False)
+        self.assertEqual(calls, [["shell", "settings", "list", "global"]])
+        self.assertIn("[OK]   global/a = 1 (already set)", out.getvalue())
+        self.assertIn("[DRY]  global/b: 2 -> 3", out.getvalue())
+
+
 class ExpandPackagesTest(unittest.TestCase):
     def test_wildcard_is_expanded_and_duplicates_dropped(self):
         installed = {"com.x.one", "com.x.two", "com.other"}

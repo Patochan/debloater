@@ -870,8 +870,16 @@ def restore_backup(path: str, apply: bool, restore_all: bool, force: bool,
 
 def apply_privacy_settings(settings: list[tuple[str, str, str]], apply: bool) -> None:
     print("\n--- Privacy settings ---")
+    # One read per namespace instead of one adb call per setting (read-back below stays live)
+    before = {}
+    for ns in {s[0] for s in settings}:
+        code, out, err = run_adb(["shell", "settings", "list", ns])
+        if code != 0:
+            print(f"[ERROR] Could not read current settings ({ns}): {err}")
+            sys.exit(1)
+        before[ns] = parse_settings_lines(out.splitlines())
     for namespace, key, value in settings:
-        current = get_setting(namespace, key)
+        current = before[namespace].get(key)
         if current == value:
             print(f"[OK]   {namespace}/{key} = {value} (already set)")
             continue
