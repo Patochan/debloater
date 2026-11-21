@@ -42,7 +42,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `-s`, `--serial SERIAL` | Choose a device by serial number. Defaults to `ANDROID_SERIAL`. If several devices are connected and none is chosen, the script asks which one to use. |
 | `--private-dns HOST` | Set a fixed Private DNS provider, e.g. `dns.quad9.net`, and check that it works (see [Private DNS](#private-dns)). |
 | `--disable-agps` | Turn off Assisted GPS, which sends cell tower info to Google. The trade-off is a slower first GPS fix. |
-| `--include-optional` | Also remove optional packages: on Samsung, Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, Edge panel extras and more (see [Packages](#packages)). |
+| `--include-optional` | Also remove optional packages: Google TV, Meet and Restore on all devices; on Samsung, Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, Smart View, Themes, Edge panel extras and more (see [Packages](#packages)). |
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
 | `--ai` (or `--AI`) | Check AI features and list them; with `--run`, turn them off and remove AI system apps (see [AI and cloud features](#ai-and-cloud-features)). |
 | `--cloud` | Check cloud features (backup, sync, cloud apps); with `--run`, turn them off and remove cloud system apps (see [AI and cloud features](#ai-and-cloud-features)). |
@@ -245,6 +245,23 @@ The tables below explain every package the script can remove: what it is, why it
 | `com.samsung.android.app.taskedge` | Edge panel tasks | Unused Edge panel extra | Edge panel tasks |
 | `com.samsung.android.app.clipboardedge` | Edge panel clipboard | Unused Edge panel extra | Edge panel clipboard |
 | `com.samsung.android.forest` | Digital Wellbeing "Forest" | Unused extra | Forest focus feature |
+| `com.samsung.android.themestore` | Galaxy Themes store | Unused extra | Downloading new themes and icons |
+| `com.samsung.android.game.gamehome` | Game Launcher | Unused extra | Game Launcher |
+| `com.samsung.android.widget.pictureframe` | Picture frame widget | Unused extra | Picture frame widget |
+| `com.samsung.android.wallpaper.live` | Live wallpapers service | Unused extra | Samsung live wallpapers |
+| `com.samsung.storyservice` | Story video service | Unused extra | Story video creation in Gallery |
+| `com.samsung.android.allshare.service.mediashare` | Smart View | Unused unless you cast to a TV | Casting to Samsung TVs and Smart View |
+| `com.samsung.android.service.peoplestripe` | People edge panel | Unused extra | People panel on the Edge screen |
+| `com.sec.android.app.quicktool` | Samsung Quick Tool | Unused extra (purpose not verified on a device) | Quick Tool features |
+| `com.samsung.android.app.sketchbook` | Sketchbook | Unused drawing app | Sketchbook drawing app |
+
+**Optional on all devices** (only with `--include-optional`):
+
+| Package | What it is | Why it's removed | What stops working |
+|---|---|---|---|
+| `com.google.android.videos` | Google TV (Play Movies & TV) | Unused unless you rent or watch movies in the app | Google TV app |
+| `com.google.android.apps.tachyon` | Google Meet / Duo calling | Unused unless you call with Google Meet or Duo | Google Meet and Duo calls |
+| `com.google.android.apps.restore` | Restore from Google backup | Only needed during setup on a new phone | Restoring data from a Google backup during setup |
 
 #### Xiaomi (MIUI / HyperOS only, skipped on custom ROMs)
 

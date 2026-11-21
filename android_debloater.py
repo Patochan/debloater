@@ -124,6 +124,12 @@ COMMON_PACKAGES = [
     "com.facebook.system",
     "com.facebook.appmanager",
 ]
+# Google apps removed only with --include-optional (all devices; used by many people)
+COMMON_OPTIONAL_PACKAGES = [
+    "com.google.android.videos",           # Google TV (Play Movies & TV)
+    "com.google.android.apps.tachyon",     # Google Meet / Duo calling
+    "com.google.android.apps.restore",     # restore from Google backup during setup
+]
 
 # Location settings, only changed with --location-device-only (trade-off: less accurate location)
 LOCATION_SETTINGS = [
@@ -177,6 +183,15 @@ VENDOR_PROFILES = {
             "com.samsung.android.app.taskedge",    # Edge panel tasks
             "com.samsung.android.app.clipboardedge",  # Edge panel clipboard
             "com.samsung.android.forest",          # Digital Wellbeing "Forest"
+            "com.samsung.android.themestore",      # Galaxy Themes store
+            "com.samsung.android.game.gamehome",   # Game Launcher
+            "com.samsung.android.widget.pictureframe",  # Picture frame widget
+            "com.samsung.android.wallpaper.live",  # live wallpapers service
+            "com.samsung.storyservice",            # Story video service
+            "com.samsung.android.allshare.service.mediashare",  # Smart View (screen casting)
+            "com.samsung.android.service.peoplestripe",  # People edge panel
+            "com.sec.android.app.quicktool",       # Samsung Quick Tool (purpose not verified)
+            "com.samsung.android.app.sketchbook",  # Sketchbook drawing app
         ],
         # --ai: Galaxy AI. Settings are only written if the key exists on the device.
         "ai_settings": [
@@ -279,6 +294,18 @@ PACKAGE_LABELS = {
     "com.samsung.android.app.taskedge": "Edge panel tasks",
     "com.samsung.android.app.clipboardedge": "Edge panel clipboard",
     "com.samsung.android.forest": "Digital Wellbeing: Forest",
+    "com.google.android.videos": "Google TV: movies and shows",
+    "com.google.android.apps.tachyon": "Google Meet / Duo calling",
+    "com.google.android.apps.restore": "Restore from Google backup",
+    "com.samsung.android.themestore": "Galaxy Themes store",
+    "com.samsung.android.game.gamehome": "Game Launcher",
+    "com.samsung.android.widget.pictureframe": "Picture frame widget",
+    "com.samsung.android.wallpaper.live": "Live wallpapers service",
+    "com.samsung.storyservice": "Story video service",
+    "com.samsung.android.allshare.service.mediashare": "Smart View screen casting",
+    "com.samsung.android.service.peoplestripe": "People edge panel",
+    "com.sec.android.app.quicktool": "Samsung Quick Tool",
+    "com.samsung.android.app.sketchbook": "Sketchbook drawing app",
 }
 
 
@@ -843,7 +870,8 @@ def managed_settings() -> set[tuple[str, str]]:
 
 
 def managed_packages(installed: set[str] | None = None) -> set[str]:
-    pkgs = set(COMMON_PACKAGES) | set(EXTRA_MANAGED_PACKAGES) | set(AI_PACKAGES)
+    pkgs = (set(COMMON_PACKAGES) | set(COMMON_OPTIONAL_PACKAGES)
+            | set(EXTRA_MANAGED_PACKAGES) | set(AI_PACKAGES))
     for profile in VENDOR_PROFILES.values():
         for group in ("packages", "optional_packages", "ai_packages", "cloud_packages"):
             pkgs |= set(profile.get(group, []))
@@ -1656,8 +1684,9 @@ def main() -> None:
                      help="no notifications at all on the lock screen (the default only hides "
                           "their content); you miss alerts while locked; --restore undoes it")
     run.add_argument("--include-optional", action="store_true",
-                     help="also remove optional packages (Samsung: Bixby, Link to Windows, Samsung "
-                          "Kids, AR Emoji, Game Tools, Smart Switch, Edge panel apps and more)")
+                     help="also remove optional packages (Google: Google TV, Meet, Restore; Samsung: "
+                          "Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, "
+                          "Smart View, Themes and more)")
     run.add_argument("--battery", action="store_true",
                      help="also apply battery settings (no mobile data on Wi-Fi, Adaptive "
                           "Battery on, 60 Hz if forced higher)")
@@ -1802,7 +1831,7 @@ def main() -> None:
 
     packages = COMMON_PACKAGES + profile["packages"]
     if args.include_optional:
-        packages += profile.get("optional_packages", [])
+        packages += COMMON_OPTIONAL_PACKAGES + profile.get("optional_packages", [])
     if args.ai:
         packages += AI_PACKAGES + profile.get("ai_packages", [])
     if args.cloud:
