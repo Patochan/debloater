@@ -706,26 +706,8 @@ def short(value: str | None, limit: int = 70) -> str:
     return value if len(value) <= limit else value[:limit] + "..."
 
 
-def restore_backup(path: str, apply: bool, restore_all: bool, force: bool,
-                   device_serial: str) -> None:
-    if not os.path.isfile(path):
-        print(f"[ERROR] Backup file not found: {path}")
-        sys.exit(1)
-    device, backup, backup_pkgs = parse_backup(path)
-
-    serial = device.get("serial", "")
-    print(f"\n[INFO] Backup: {os.path.basename(path)}")
-    print(f"[INFO] Backup device: {device.get('manufacturer', '?')} {device.get('model', '?')} "
-          f"(serial {serial or '?'})")
-    if serial and serial not in (device_serial, SERIAL) and not force:
-        print(f"[ERROR] Backup is from a different device ({serial}, "
-              f"connected: {device_serial}).")
-        print("  Use --force to restore anyway.")
-        sys.exit(1)
-    mode = "ALL settings" if restore_all else "only settings managed by the script"
-    print(f"[INFO] Scope: {mode}")
-
-    # --- Settings ---
+def restore_settings(backup: dict, restore_all: bool, apply: bool) -> tuple[int, int]:
+    """Restore settings, notification access and Google backup. Returns (changes, errors)."""
     print("\n--- Restoring settings ---")
     managed = managed_settings()
     changed = failed = 0
@@ -805,7 +787,12 @@ def restore_backup(path: str, apply: bool, restore_all: bool, force: bool,
     if changed == 0:
         print("[OK]   All settings already match the backup.")
 
-    # --- Packages ---
+    return changed, failed
+
+
+def restore_packages(backup_pkgs, restore_all: bool, apply: bool) -> tuple[int, int]:
+    """Reinstall or re-enable packages from the backup. Returns (changes, errors)."""
+    failed = 0
     print("\n--- Restoring packages ---")
     installed = list_packages()
     on_system = list_packages("-u")      # incl. system packages uninstalled for user 0
@@ -852,6 +839,31 @@ def restore_backup(path: str, apply: bool, restore_all: bool, force: bool,
 
     if pkg_changes == 0:
         print("[OK]   No packages to restore.")
+
+    return pkg_changes, failed
+
+
+def restore_backup(path: str, apply: bool, restore_all: bool, force: bool,
+                   device_serial: str) -> None:
+    if not os.path.isfile(path):
+        print(f"[ERROR] Backup file not found: {path}")
+        sys.exit(1)
+    device, backup, backup_pkgs = parse_backup(path)
+
+    serial = device.get("serial", "")
+    print(f"\n[INFO] Backup: {os.path.basename(path)}")
+    print(f"[INFO] Backup device: {device.get('manufacturer', '?')} {device.get('model', '?')} "
+          f"(serial {serial or '?'})")
+    if serial and serial not in (device_serial, SERIAL) and not force:
+        print(f"[ERROR] Backup is from a different device ({serial}, "
+              f"connected: {device_serial}).")
+        print("  Use --force to restore anyway.")
+        sys.exit(1)
+    mode = "ALL settings" if restore_all else "only settings managed by the script"
+    print(f"[INFO] Scope: {mode}")
+    changed, failed = restore_settings(backup, restore_all, apply)
+    pkg_changes, pkg_failed = restore_packages(backup_pkgs, restore_all, apply)
+    failed += pkg_failed
 
     if not apply:
         print(f"\nDry run: {changed} setting(s), {pkg_changes} package(s) would be "
