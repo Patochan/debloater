@@ -42,7 +42,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `-s`, `--serial SERIAL` | Choose a device by serial number. Defaults to `ANDROID_SERIAL`. If several devices are connected and none is chosen, the script asks which one to use. |
 | `--private-dns HOST` | Set a fixed Private DNS provider, e.g. `dns.quad9.net`, and check that it works (see [Private DNS](#private-dns)). |
 | `--disable-agps` | Turn off Assisted GPS, which sends cell tower info to Google. The trade-off is a slower first GPS fix. |
-| `--include-optional` | Also remove optional packages: Google TV, Meet and Restore on all devices; on Samsung, Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, Smart View, Themes, Edge panel extras and more (see [Packages](#packages)). |
+| `--include-optional` | Also remove optional packages: Google TV, Meet and Restore on all devices; on Samsung, Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, Smart View, Themes, DeX, Samsung Video, Reminder, Edge panel extras and more (see [Packages](#packages)). |
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
 | `--ai` (or `--AI`) | Check AI features and list them; with `--run`, turn them off and remove AI system apps (see [AI and cloud features](#ai-and-cloud-features)). |
 | `--cloud` | Check cloud features (backup, sync, cloud apps); with `--run`, turn them off and remove cloud system apps (see [AI and cloud features](#ai-and-cloud-features)). |
@@ -254,6 +254,14 @@ The tables below explain every package the script can remove: what it is, why it
 | `com.samsung.android.service.peoplestripe` | People edge panel | Unused extra | People panel on the Edge screen |
 | `com.sec.android.app.quicktool` | Samsung Quick Tool | Unused extra (purpose not verified on a device) | Quick Tool features |
 | `com.samsung.android.app.sketchbook` | Sketchbook | Unused drawing app | Sketchbook drawing app |
+| `com.sec.android.app.desktoplauncher` | DeX desktop launcher | Only needed if you use DeX | Samsung DeX desktop mode |
+| `com.sec.android.autodoodle.service` | Auto Doodle | Unused extra | Automatic drawings in Gallery and Notes |
+| `com.samsung.android.app.dofviewer` | Depth-of-field viewer | Unused extra | Depth-of-field viewer for photos |
+| `com.sec.android.app.soundalive` | SoundAlive | Unused equalizer | SoundAlive sound effects |
+| `com.samsung.android.video` | Samsung Video | Unused if you use another video player | Samsung's video player |
+| `com.samsung.android.app.smartcapture` | Smart Capture | Unused screenshot tools | Smart Capture (scroll and extended screenshots) |
+| `com.samsung.android.app.reminder` | Samsung Reminder | Unused if you use another reminder app | Samsung Reminder |
+| `com.samsung.android.app.camera.sticker.facearavatar.preload` | AR avatar sticker preload | Only needed for AR Emoji stickers | AR Emoji stickers |
 
 **Optional on all devices** (only with `--include-optional`):
 

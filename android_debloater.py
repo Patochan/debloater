@@ -192,6 +192,14 @@ VENDOR_PROFILES = {
             "com.samsung.android.service.peoplestripe",  # People edge panel
             "com.sec.android.app.quicktool",       # Samsung Quick Tool (purpose not verified)
             "com.samsung.android.app.sketchbook",  # Sketchbook drawing app
+            "com.sec.android.app.desktoplauncher",  # DeX desktop launcher
+            "com.sec.android.autodoodle.service",  # Auto Doodle (automatic drawings)
+            "com.samsung.android.app.dofviewer",   # depth-of-field viewer
+            "com.sec.android.app.soundalive",      # SoundAlive equalizer
+            "com.samsung.android.video",           # Samsung video player
+            "com.samsung.android.app.smartcapture",  # Smart Capture screenshot tools
+            "com.samsung.android.app.reminder",    # Samsung Reminder
+            "com.samsung.android.app.camera.sticker.facearavatar.preload",  # AR avatar stickers (AR Emoji)
         ],
         # --ai: Galaxy AI. Settings are only written if the key exists on the device.
         "ai_settings": [
@@ -306,6 +314,14 @@ PACKAGE_LABELS = {
     "com.samsung.android.service.peoplestripe": "People edge panel",
     "com.sec.android.app.quicktool": "Samsung Quick Tool",
     "com.samsung.android.app.sketchbook": "Sketchbook drawing app",
+    "com.sec.android.app.desktoplauncher": "DeX desktop launcher",
+    "com.sec.android.autodoodle.service": "Auto Doodle: automatic drawings",
+    "com.samsung.android.app.dofviewer": "Depth-of-field viewer",
+    "com.sec.android.app.soundalive": "SoundAlive equalizer",
+    "com.samsung.android.video": "Samsung video player",
+    "com.samsung.android.app.smartcapture": "Smart Capture screenshot tools",
+    "com.samsung.android.app.reminder": "Samsung Reminder",
+    "com.samsung.android.app.camera.sticker.facearavatar.preload": "AR avatar stickers (AR Emoji)",
 }
 
 
@@ -1686,7 +1702,7 @@ def main() -> None:
     run.add_argument("--include-optional", action="store_true",
                      help="also remove optional packages (Google: Google TV, Meet, Restore; Samsung: "
                           "Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, "
-                          "Smart View, Themes and more)")
+                          "Smart View, Themes, DeX, Samsung Video, Reminder and more)")
     run.add_argument("--battery", action="store_true",
                      help="also apply battery settings (no mobile data on Wi-Fi, Adaptive "
                           "Battery on, 60 Hz if forced higher)")
