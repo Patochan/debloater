@@ -1003,7 +1003,7 @@ def apply_google_backup_off(apply: bool) -> None:
 def ai_recommendations(dev: dict[str, str], installed: set[str]) -> list[str]:
     """AI features that can't (or shouldn't) be changed via ADB. Only shown with --ai."""
     tips: list[str] = []
-    samsung = dev["profile"] == "samsung" and not dev["custom_rom"]
+    samsung = dev["samsung"]
 
     assistant = (get_setting("secure", "assistant") or "").split("/")[0]
     if assistant:
@@ -1041,7 +1041,7 @@ def ai_recommendations(dev: dict[str, str], installed: set[str]) -> list[str]:
 def cloud_recommendations(dev: dict[str, str], installed: set[str]) -> list[str]:
     """Cloud features that can't (or shouldn't) be changed via ADB. Only shown with --cloud."""
     tips: list[str] = []
-    samsung = dev["profile"] == "samsung" and not dev["custom_rom"]
+    samsung = dev["samsung"]
 
     if get_setting("global", "master_sync_status") == "1":
         _, out, _ = run_adb(["shell", "dumpsys", "account"])
@@ -1135,7 +1135,7 @@ def manual_recommendations(dev: dict[str, str], installed: set[str],
                            adb_off: bool = False) -> list[str]:
     """Check things that can't (or shouldn't) be changed via ADB."""
     tips: list[str] = []
-    samsung = dev["profile"] == "samsung" and not dev["custom_rom"]
+    samsung = dev["samsung"]
 
     # Security patch level
     try:
@@ -1264,7 +1264,7 @@ def refresh_rate_fix() -> tuple[str, str, str] | None:
 def battery_recommendations(dev: dict[str, str], battery_flag: bool) -> list[str]:
     """Check settings that affect battery lifespan and runtime."""
     tips: list[str] = []
-    samsung = dev["profile"] == "samsung" and not dev["custom_rom"]
+    samsung = dev["samsung"]
 
     # --- Battery lifespan: charge limit and heat ---
     if samsung:
@@ -1445,6 +1445,7 @@ def main() -> None:
     dev["custom_rom"] = bool(
         profile and not any(p in installed for p in profile.get("marker_packages", []))
     )
+    dev["samsung"] = dev["profile"] == "samsung" and not dev["custom_rom"]
     if dev["custom_rom"]:
         print(f"[INFO] No {dev['manufacturer']} system apps found: probably a custom ROM. "
               "Skipping the vendor profile, generic rules only.")
