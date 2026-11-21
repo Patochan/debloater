@@ -180,3 +180,14 @@ class ExpandPackagesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PrivateDnsSupportTest(unittest.TestCase):
+    def test_android_9_and_newer_is_supported(self):
+        self.assertTrue(ad.private_dns_supported("28"))
+        self.assertTrue(ad.private_dns_supported("37"))
+
+    def test_older_or_unknown_sdk_is_skipped(self):
+        self.assertFalse(ad.private_dns_supported("19"))
+        self.assertFalse(ad.private_dns_supported("27"))
+        self.assertFalse(ad.private_dns_supported(""))

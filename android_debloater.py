@@ -31,6 +31,15 @@ from datetime import datetime
 # Configuration
 # ---------------------------------------------------------------------------
 
+# Private DNS provider set when --private-dns is not given (DNS over TLS, checked after setting)
+DEFAULT_PRIVATE_DNS = "dns.quad9.net"
+PRIVATE_DNS_MIN_SDK = 28  # Android 9 (Pie) introduced Private DNS
+
+
+def private_dns_supported(sdk: str) -> bool:
+    """True if the Android SDK level (ro.build.version.sdk) has Private DNS."""
+    return sdk.isdigit() and int(sdk) >= PRIVATE_DNS_MIN_SDK
+
 # Privacy settings (namespace, key, value) applied to all devices
 COMMON_SETTINGS = [
     # Disable Google usage & diagnostics
@@ -1843,8 +1852,9 @@ def main() -> None:
     run = parser.add_argument_group("privacy and battery")
     run.add_argument("--run", action="store_true",
                      help="apply the changes (without it: dry run, nothing changes)")
-    run.add_argument("--private-dns", metavar="HOST",
-                     help="fixed encrypted DNS provider, e.g. dns.quad9.net; checked after setting")
+    run.add_argument("--private-dns", metavar="HOST", default=DEFAULT_PRIVATE_DNS,
+                     help=f"fixed encrypted DNS provider (default: {DEFAULT_PRIVATE_DNS}); "
+                          "checked after setting")
     run.add_argument("--disable-agps", action="store_true",
                      help="turn off Assisted GPS (stops cell tower info going to Google; "
                           "slower first GPS fix)")
@@ -1982,9 +1992,14 @@ def main() -> None:
         profile = empty_profile
 
     settings = COMMON_SETTINGS + profile["settings"]
-    if args.private_dns:
+    private_dns = args.private_dns
+    dns_supported = private_dns_supported(dev["sdk"])
+    if private_dns and not dns_supported:
+        print(f"[SKIP] Private DNS needs Android 9 or newer (this device: Android {dev['android']}).")
+        private_dns = None
+    if private_dns:
         settings += [("global", "private_dns_mode", "hostname"),
-                     ("global", "private_dns_specifier", args.private_dns)]
+                     ("global", "private_dns_specifier", private_dns)]
     if args.disable_agps:
         settings.append(("global", "assisted_gps_enabled", "0"))
     if args.screen_timeout:
@@ -2017,8 +2032,8 @@ def main() -> None:
     apply_privacy_settings(settings, apply)
     if args.cloud:
         apply_google_backup_off(apply)
-    if args.private_dns:
-        verify_private_dns(args.private_dns)
+    if private_dns:
+        verify_private_dns(private_dns)
     if args.revoke_notifications:
         revoke_notification_access(
             [p.strip() for p in args.revoke_notifications.split(",") if p.strip()], apply)
@@ -2035,7 +2050,7 @@ def main() -> None:
 
     print("\n--- Manual recommendations ---")
     # Disabled packages don't run, so they don't need a "still installed" tip
-    tips = manual_recommendations(dev, installed - disabled, bool(args.private_dns),
+    tips = manual_recommendations(dev, installed - disabled, bool(private_dns) or not dns_supported,
                                   timeout_set=bool(args.screen_timeout),
                                   adb_off=args.disable_adb)
     for i, tip in enumerate(tips, 1):

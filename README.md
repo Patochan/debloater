@@ -40,7 +40,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `--pair-code CODE` | 6-digit pairing code for `--pair`; asked for if missing. |
 | `--tcpip [PORT]` | Switch a USB-connected device to network adb (default port 5555) and continue over Wi-Fi. |
 | `-s`, `--serial SERIAL` | Choose a device by serial number. Defaults to `ANDROID_SERIAL`. If several devices are connected and none is chosen, the script asks which one to use. |
-| `--private-dns HOST` | Set a fixed Private DNS provider, e.g. `dns.quad9.net`, and check that it works (see [Private DNS](#private-dns)). |
+| `--private-dns HOST` | Set a fixed Private DNS provider and check that it works (see [Private DNS](#private-dns)). Default: `dns.quad9.net`. |
 | `--disable-agps` | Turn off Assisted GPS, which sends cell tower info to Google. The trade-off is a slower first GPS fix. |
 | `--include-optional` | Also remove optional packages: Google TV and Meet on all devices (Google Restore is under `--cloud`); on Samsung, Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, Smart View, Themes, DeX, Samsung Video, Reminder, Edge panel extras; on CUBOT, Digital Wellbeing and the tracing tool; on Huawei, Huawei Video, AppGallery, Huawei Weather and the guides; on all devices, Google News, Hangouts, Play Music, Sony media and notes apps and CyanogenMod extras; and more (see [Packages](#packages)). |
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
@@ -645,7 +645,7 @@ On a phone with a user-installed AI app, the AI recommendations also list it, e.
 
 ## Private DNS
 
-`--private-dns HOST` sets a fixed Private DNS provider (DNS over TLS). DNS lookups are then encrypted, so your mobile carrier and Wi-Fi owners can't see which domains you look up. Common providers:
+`--private-dns HOST` sets a fixed Private DNS provider (DNS over TLS). DNS lookups are then encrypted, so your mobile carrier and Wi-Fi owners can't see which domains you look up. If the option is not given, the script uses `dns.quad9.net`, so every `--run` sets it. Private DNS needs Android 9 or newer; on older devices the script skips it and says so. Common providers:
 
 | Provider | Hostname |
 |---|---|
