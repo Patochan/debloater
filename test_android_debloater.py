@@ -128,6 +128,18 @@ class PackageListTest(unittest.TestCase):
                 ad.package_list(bad)
 
 
+class PermissionListTest(unittest.TestCase):
+    def test_short_names_get_the_android_prefix(self):
+        self.assertEqual(ad.permission_list("com.a:CAMERA, com.b:android.permission.RECORD_AUDIO"),
+                         [("com.a", "android.permission.CAMERA"),
+                          ("com.b", "android.permission.RECORD_AUDIO")])
+
+    def test_bad_items_are_rejected(self):
+        for bad in ["com.a", "com.a:", "com.a:CAM;ERA", "bad pkg:CAMERA", "com.a:CAMERA$(id)"]:
+            with self.subTest(bad=bad), self.assertRaises(argparse.ArgumentTypeError):
+                ad.permission_list(bad)
+
+
 class ExpandPackagesTest(unittest.TestCase):
     def test_wildcard_is_expanded_and_duplicates_dropped(self):
         installed = {"com.x.one", "com.x.two", "com.other"}

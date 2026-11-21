@@ -44,6 +44,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
 | `--ai` (or `--AI`) | Check AI features and list them; with `--run`, turn them off and remove AI system apps (see [AI and cloud features](#ai-and-cloud-features)). |
 | `--cloud` | Check cloud features (backup, sync, cloud apps); with `--run`, turn them off and remove cloud system apps (see [AI and cloud features](#ai-and-cloud-features)). |
+| `--revoke-permissions PKG:PERM[,...]` | Take a permission (location, camera, microphone, contacts ...) away from an app. Not undone by `--restore`; see [App permissions](#app-permissions---revoke-permissions). |
 | `--background-off PKG[,PKG...]` | Stop these apps from running in the background (Android `appops` `RUN_ANY_IN_BACKGROUND`). Not undone by `--restore`; see [Background activity](#background-activity---background-off). |
 | `--report` | Also save the whole output of the run as plain text in `logs/report_<timestamp>.txt`. Implies `--no-color`. |
 | `--audit` | Report only: list apps installed outside the Play Store, with the installer that put them on the phone. Changes nothing. |
@@ -271,6 +272,22 @@ The vendor profile is chosen from `ro.product.manufacturer`. If none of the vend
 ```bash
 python android_debloater.py --run --ai --cloud --report
 ```
+
+## App permissions (`--revoke-permissions`)
+
+`--revoke-permissions PKG:PERM[,PKG:PERM...]` takes a runtime permission away from an app, e.g. its location or camera access. Give the permission as a short name (`CAMERA`, `ACCESS_FINE_LOCATION`, `RECORD_AUDIO`, `READ_CONTACTS`) or the full name. Apps that don't have the permission are skipped. The app keeps working; if it needs the permission later, Android asks again. Package names and permission names are checked before they are sent to the phone.
+
+```bash
+python android_debloater.py --revoke-permissions com.example.app:CAMERA,com.example.app:ACCESS_FINE_LOCATION
+```
+
+**Undo:** this is not part of `--restore`. Grant the permission back:
+
+```bash
+adb shell pm grant --user 0 com.example.app android.permission.CAMERA
+```
+
+Tested on the phone with a browser's location permission: revoked, then granted back. The grant-back restores the permission but may not restore the exact internal flags Android shows for it.
 
 ## Background activity (`--background-off`)
 

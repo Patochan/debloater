@@ -610,6 +610,18 @@ def detect_device() -> dict[str, str]:
 
 
 PACKAGE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$")
+PERMISSION_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_.]*$")
+
+
+def permission_list(text: str) -> list[tuple[str, str]]:
+    """Parse 'pkg:PERMISSION,...'; a short name like CAMERA means android.permission.CAMERA."""
+    pairs = []
+    for item in (p.strip() for p in text.split(",") if p.strip()):
+        pkg, sep, perm = item.partition(":")
+        if not sep or not PACKAGE_NAME_RE.match(pkg) or not PERMISSION_NAME_RE.match(perm):
+            raise argparse.ArgumentTypeError(f"expected PKG:PERMISSION, got '{item}'")
+        pairs.append((pkg, perm if "." in perm else f"android.permission.{perm}"))
+    return pairs
 
 
 def package_list(text: str) -> list[str]:
@@ -994,6 +1006,32 @@ def restrict_background(packages: list[str], installed: set[str], apply: bool) -
             print(f"[SET]  {pkg}: background activity off")
         else:
             print(f"[WARN] {pkg}: could not turn off background activity")
+
+
+def revoke_permissions(pairs: list[tuple[str, str]], installed: set[str], apply: bool) -> None:
+    """Take a runtime permission away from an app (pm revoke; undo with pm grant)."""
+    print("\n--- Revoking app permissions ---")
+    for pkg, perm in pairs:
+        name = f"{pkg} ({perm.rsplit('.', 1)[-1]})"
+        if pkg not in installed:
+            print(f"[SKIP] {pkg} - not installed")
+            continue
+        if not permission_granted(pkg, perm):
+            print(f"[SKIP] {name} - not granted")
+            continue
+        if not apply:
+            print(f"[DRY]  {name} would be revoked")
+            continue
+        run_adb(["shell", "pm", "revoke", "--user", "0", pkg, perm])
+        if permission_granted(pkg, perm):
+            print(f"[WARN] {name} could not be revoked (the system may not allow it)")
+        else:
+            print(f"[SET]  {name} revoked")
+
+
+def permission_granted(pkg: str, perm: str) -> bool:
+    _, out, _ = run_adb(["shell", "dumpsys", "package", pkg])
+    return f"{perm}: granted=true" in out
 
 
 def background_is_off(pkg: str) -> bool:
@@ -1467,6 +1505,10 @@ def main() -> None:
     parser.add_argument("--cloud", "--CLOUD", dest="cloud", action="store_true",
                         help="check cloud features (backup, sync, cloud apps) and, with --run, "
                              "turn them off / remove them")
+    parser.add_argument("--revoke-permissions", metavar="PKG:PERMISSION[,...]",
+                        type=permission_list,
+                        help="take a permission away from an app, e.g. com.x:CAMERA "
+                             "(undo: pm grant --user 0 PKG PERMISSION)")
     parser.add_argument("--background-off", metavar="PKG[,PKG...]", type=package_list,
                         help="stop these apps from running in the background (undo: "
                              "cmd appops set PKG RUN_ANY_IN_BACKGROUND default)")
@@ -1599,6 +1641,8 @@ def main() -> None:
         revoke_notification_access(
             [p.strip() for p in args.revoke_notifications.split(",") if p.strip()], apply)
     remove_packages(packages, installed, disabled, apply)
+    if args.revoke_permissions:
+        revoke_permissions(args.revoke_permissions, installed, apply)
     if args.background_off:
         restrict_background(args.background_off, installed, apply)
 
