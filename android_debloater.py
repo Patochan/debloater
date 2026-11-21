@@ -469,7 +469,11 @@ def select_device(requested: str | None) -> str:
     for i, (serial, _, info) in enumerate(ready, 1):
         print(f"  [{i}] {serial}  {info.get('model', '')}")
     while True:
-        choice = input("Select device (number): ").strip()
+        try:
+            choice = input("Select device (number): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n[ERROR] No device chosen. Use -s SERIAL to pick one.")
+            sys.exit(1)
         if choice.isdigit() and 1 <= int(choice) <= len(ready):
             return ready[int(choice) - 1][0]
 
