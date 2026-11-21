@@ -42,7 +42,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `-s`, `--serial SERIAL` | Choose a device by serial number. Defaults to `ANDROID_SERIAL`. If several devices are connected and none is chosen, the script asks which one to use. |
 | `--private-dns HOST` | Set a fixed Private DNS provider, e.g. `dns.quad9.net`, and check that it works (see [Private DNS](#private-dns)). |
 | `--disable-agps` | Turn off Assisted GPS, which sends cell tower info to Google. The trade-off is a slower first GPS fix. |
-| `--include-optional` | Also remove optional packages: Google TV, Meet and Restore on all devices; on Samsung, Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, Smart View, Themes, DeX, Samsung Video, Reminder, Edge panel extras; on CUBOT, Digital Wellbeing and the tracing tool; and more (see [Packages](#packages)). |
+| `--include-optional` | Also remove optional packages: Google TV, Meet and Restore on all devices; on Samsung, Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, Smart View, Themes, DeX, Samsung Video, Reminder, Edge panel extras; on CUBOT, Digital Wellbeing and the tracing tool; on all devices, Google News, Hangouts, Play Music, Sony media and notes apps and CyanogenMod extras; and more (see [Packages](#packages)). |
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
 | `--ai` (or `--AI`) | Check AI features and list them; with `--run`, turn them off and remove AI system apps (see [AI and cloud features](#ai-and-cloud-features)). |
 | `--cloud` | Check cloud features (backup, sync, cloud apps); with `--run`, turn them off and remove cloud system apps (see [AI and cloud features](#ai-and-cloud-features)). |
@@ -270,6 +270,23 @@ The tables below explain every package the script can remove: what it is, why it
 | `com.google.android.videos` | Google TV (Play Movies & TV) | Unused unless you rent or watch movies in the app | Google TV app |
 | `com.google.android.apps.tachyon` | Google Meet / Duo calling | Unused unless you call with Google Meet or Duo | Google Meet and Duo calls |
 | `com.google.android.apps.restore` | Restore from Google backup | Only needed during setup on a new phone | Restoring data from a Google backup during setup |
+| `com.google.android.apps.magazines` | Google News | Unused news feed | Google News |
+| `com.google.android.apps.plus` | Google+ | Discontinued service, unused | Nothing (the service is shut down) |
+| `com.google.android.talk` | Hangouts | Old messaging app, mostly replaced by Google Messages and Meet | Hangouts chats and calls |
+| `com.google.android.music` | Play Music | Discontinued in favor of YouTube Music | Play Music library and playback |
+| `com.sonyericsson.music` | Sony Music | Unused if you use another music app | Sony music player |
+| `com.sonyericsson.video` | Sony Video | Unused if you use another video player | Sony video player |
+| `com.sonyericsson.organizer` | Sony Organizer | Unused extra | Sony Organizer |
+| `com.sonyericsson.musicvisualizer` | Sony music visualizer | Unused extra | Music visualizer |
+| `com.sonyericsson.advancedwidget.clock` | Sony clock widget | Unused widget | Sony clock widget |
+| `com.sonyericsson.advancedwidget.music` | Sony music widget | Unused widget | Sony music widget |
+| `com.sonymobile.notes` | Sony Notes | Unused if you use another notes app | Sony Notes |
+| `com.sonymobile.tasks` | Sony Tasks | Unused if you use another task app | Sony Tasks |
+| `com.sony.walkman.wmsetup2` | Sony Walkman setup | Setup helper for Sony music, unused | Sony Walkman setup |
+| `com.cyanogenmod.account` | CyanogenMod account sync | Account sync for the CyanogenMod service | CyanogenMod account features |
+| `com.cyanogenmod.lockclock` | CyanogenMod clock widget | Unused widget | CyanogenMod clock widget |
+| `org.cyanogenmod.theme.chooser` | CyanogenMod theme chooser | Unused theme tool | Theme chooser |
+| `org.cyanogenmod.themes.provider` | CyanogenMod theme provider | Unused theme tool | Theme provider |
 
 #### Xiaomi (MIUI / HyperOS only, skipped on custom ROMs)
 
@@ -311,6 +328,8 @@ The profile is detected by the factory test apps `com.freemeimp.factory` or `com
 | `com.google.android.as` | Android System Intelligence | On-device AI that analyzes screen content, notifications and app usage | Smart text selection, Live Caption, app suggestions, smart replies |
 | `com.google.android.as.oss` | Private Compute Services | Network connection for Android System Intelligence | Nothing without Android System Intelligence |
 | `com.google.ar.lens` | Google Lens | AI visual search of photos and the camera view | Google Lens |
+| `com.google.android.apps.genie.geniewidget` | Google Now widget (Genie) | Feed and suggestion widget | Google Now cards and suggestions |
+| `com.google.android.ears` | Google Now speech recognition | Speech recognition for Google Now | Voice commands in Google Now |
 | `com.samsung.android.aicore` | Samsung AI Core | AI runtime for Galaxy AI | Galaxy AI features that run on the device |
 | `com.samsung.android.smartsuggestions` | Smart suggestions | AI suggestions based on usage; reads all notifications | App and action suggestions |
 | `com.samsung.android.app.interpreter` | Interpreter | Galaxy AI live translation of conversations | Interpreter |
@@ -323,10 +342,11 @@ The profile is detected by the factory test apps `com.freemeimp.factory` or `com
 | `com.samsung.android.bixby.ondevice.*` | Bixby on-device language packs (e.g. `.dede`, `.enus`) | Speech recognition for Bixby | Nothing without Bixby |
 | `com.samsung.android.intellivoiceservice` | Bixby voice processing engine | Speech processing for Bixby | Bixby voice commands |
 
-#### Cloud (only with `--cloud`, Samsung)
+#### Cloud (only with `--cloud`)
 
 | Package | What it is | Why it's removed | What stops working |
 |---|---|---|---|
+| `com.google.android.apps.uploader` | Google Photos uploader (old Picasa sync) | Old sync tool that uploads photos to Google | Automatic photo upload from the old uploader |
 | `com.samsung.android.scloud` | Samsung Cloud | Backup and sync of Samsung data (contacts, calendar, notes, settings) to Samsung's servers | Samsung Cloud backup and sync; the Samsung account itself keeps working |
 | `com.microsoft.skydrive` | OneDrive (preinstalled) | Cloud storage, e.g. for Gallery sync | OneDrive and Gallery sync to OneDrive |
 

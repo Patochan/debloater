@@ -84,6 +84,8 @@ AI_PACKAGES = [
     "com.google.android.as",                       # Android System Intelligence
     "com.google.android.as.oss",                   # Private Compute Services (ASI network bridge)
     "com.google.ar.lens",                          # Google Lens (AI visual search)
+    "com.google.android.apps.genie.geniewidget",   # Google Now widget (Genie)
+    "com.google.android.ears",                     # speech recognition for Google Now
 ]
 # Apps the user installed themselves: only reported, never removed
 AI_USER_APPS = {
@@ -129,6 +131,29 @@ COMMON_OPTIONAL_PACKAGES = [
     "com.google.android.videos",           # Google TV (Play Movies & TV)
     "com.google.android.apps.tachyon",     # Google Meet / Duo calling
     "com.google.android.apps.restore",     # restore from Google backup during setup
+    "com.google.android.apps.magazines",   # Google News
+    "com.google.android.apps.plus",        # Google+ (discontinued)
+    "com.google.android.talk",             # Hangouts (old)
+    "com.google.android.music",            # Play Music (discontinued)
+    # Sony apps ported to custom ROMs and Sony phones
+    "com.sonyericsson.music",
+    "com.sonyericsson.video",
+    "com.sonyericsson.organizer",
+    "com.sonyericsson.musicvisualizer",
+    "com.sonyericsson.advancedwidget.clock",
+    "com.sonyericsson.advancedwidget.music",
+    "com.sonymobile.notes",
+    "com.sonymobile.tasks",
+    "com.sony.walkman.wmsetup2",
+    # CyanogenMod extras
+    "com.cyanogenmod.account",             # CyanogenMod account sync
+    "com.cyanogenmod.lockclock",           # clock widget
+    "org.cyanogenmod.theme.chooser",       # theme chooser
+    "org.cyanogenmod.themes.provider",     # theme provider
+]
+# Google apps removed only with --cloud (all devices)
+COMMON_CLOUD_PACKAGES = [
+    "com.google.android.apps.uploader",    # Google Photos uploader (old Picasa sync)
 ]
 
 # Location settings, only changed with --location-device-only (trade-off: less accurate location)
@@ -350,6 +375,26 @@ PACKAGE_LABELS = {
     "com.google.android.apps.wellbeing": "Digital Wellbeing",
     "com.google.android.printservice.recommendation": "Print service suggestions",
     "com.android.traceur": "System tracing tool",
+    "com.google.android.apps.magazines": "Google News",
+    "com.google.android.apps.plus": "Google+ (discontinued)",
+    "com.google.android.talk": "Hangouts (old)",
+    "com.google.android.music": "Play Music (discontinued)",
+    "com.sonyericsson.music": "Sony Music",
+    "com.sonyericsson.video": "Sony Video",
+    "com.sonyericsson.organizer": "Sony Organizer",
+    "com.sonyericsson.musicvisualizer": "Sony music visualizer",
+    "com.sonyericsson.advancedwidget.clock": "Sony clock widget",
+    "com.sonyericsson.advancedwidget.music": "Sony music widget",
+    "com.sonymobile.notes": "Sony Notes",
+    "com.sonymobile.tasks": "Sony Tasks",
+    "com.sony.walkman.wmsetup2": "Sony Walkman setup",
+    "com.cyanogenmod.account": "CyanogenMod account sync",
+    "com.cyanogenmod.lockclock": "CyanogenMod clock widget",
+    "org.cyanogenmod.theme.chooser": "CyanogenMod theme chooser",
+    "org.cyanogenmod.themes.provider": "CyanogenMod theme provider",
+    "com.google.android.apps.genie.geniewidget": "Google Now widget (Genie)",
+    "com.google.android.ears": "Google Now speech recognition",
+    "com.google.android.apps.uploader": "Google Photos uploader (old Picasa sync)",
 }
 
 
@@ -914,7 +959,7 @@ def managed_settings() -> set[tuple[str, str]]:
 
 
 def managed_packages(installed: set[str] | None = None) -> set[str]:
-    pkgs = (set(COMMON_PACKAGES) | set(COMMON_OPTIONAL_PACKAGES)
+    pkgs = (set(COMMON_PACKAGES) | set(COMMON_OPTIONAL_PACKAGES) | set(COMMON_CLOUD_PACKAGES)
             | set(EXTRA_MANAGED_PACKAGES) | set(AI_PACKAGES))
     for profile in VENDOR_PROFILES.values():
         for group in ("packages", "optional_packages", "ai_packages", "cloud_packages"):
@@ -1731,7 +1776,8 @@ def main() -> None:
                      help="also remove optional packages (Google: Google TV, Meet, Restore; Samsung: "
                           "Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, "
                           "Smart View, Themes, DeX, Samsung Video, Reminder; CUBOT: Digital Wellbeing, "
-                          "tracing tool and more)")
+                          "tracing tool; all devices: Google News, Hangouts, Play Music, Sony media "
+                          "and notes apps, CyanogenMod extras and more)")
     run.add_argument("--battery", action="store_true",
                      help="also apply battery settings (no mobile data on Wi-Fi, Adaptive "
                           "Battery on, 60 Hz if forced higher)")
@@ -1747,7 +1793,7 @@ def main() -> None:
                        help="AI features: assistant, Gemini, Galaxy AI. Lists them; with --run "
                             "turns them off and removes the AI apps")
     extra.add_argument("--cloud", "--CLOUD", dest="cloud", action="store_true",
-                       help="cloud features: Google backup, auto-sync, Samsung Cloud, OneDrive. "
+                       help="cloud features: Google backup, auto-sync, Samsung Cloud, OneDrive, old Google Photos uploader. "
                             "Lists them; with --run turns them off")
 
     per_app = parser.add_argument_group("per-app changes (not undone by --restore)")
@@ -1880,7 +1926,7 @@ def main() -> None:
     if args.ai:
         packages += AI_PACKAGES + profile.get("ai_packages", [])
     if args.cloud:
-        packages += profile.get("cloud_packages", [])
+        packages += COMMON_CLOUD_PACKAGES + profile.get("cloud_packages", [])
     packages = expand_packages(packages, installed)
 
     disabled = list_packages("-d")
