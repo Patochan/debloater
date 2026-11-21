@@ -19,6 +19,9 @@ class ParseSettingsTest(unittest.TestCase):
         self.assertEqual(ad.parse_settings_lines(lines),
                          {"a": "1", "b": "first\nsecond line", "c": None})
 
+    def test_line_after_null_is_dropped(self):
+        self.assertEqual(ad.parse_settings_lines(["c=null", "stray"]), {"c": None})
+
 
 class ParseBackupTest(unittest.TestCase):
     def test_round_trip(self):

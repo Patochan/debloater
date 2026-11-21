@@ -616,7 +616,7 @@ def parse_settings_lines(lines: list[str]) -> dict[str, str | None]:
         if m:
             last = m.group(1)
             result[last] = m.group(2)
-        elif last is not None and result[last] is not None:
+        elif last is not None and result[last] != "null":
             result[last] += "\n" + line
     # "null" means: the setting exists but has no value
     return {k: (None if v == "null" else v) for k, v in result.items()}
