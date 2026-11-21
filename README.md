@@ -44,6 +44,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
 | `--ai` (or `--AI`) | Check AI features and list them; with `--run`, turn them off and remove AI system apps (see [AI and cloud features](#ai-and-cloud-features)). |
 | `--cloud` | Check cloud features (backup, sync, cloud apps); with `--run`, turn them off and remove cloud system apps (see [AI and cloud features](#ai-and-cloud-features)). |
+| `--report` | Also save the whole output of the run as plain text in `logs/report_<timestamp>.txt`. Implies `--no-color`. |
 | `--audit` | Report only: list apps installed outside the Play Store, with the installer that put them on the phone. Changes nothing. |
 | `--location-device-only` | Location from the phone's GPS only, no Google network location (`secure/location_mode` 3 → 1). Trade-off: less accurate location. |
 | `--screen-timeout SECONDS` | Set the screen timeout, e.g. `60`. Minimum 10 seconds. |
@@ -261,6 +262,14 @@ Earlier versions of the script also removed `com.google.android.contactkeys` (An
 ### Vendor profiles and custom ROMs
 
 The vendor profile is chosen from `ro.product.manufacturer`. If none of the vendor's own system apps are installed (for example on LineageOS), the script assumes a custom ROM, skips the vendor profile and applies only the generic rules.
+
+## Report (`--report`)
+
+`--report` saves a copy of everything the run prints to `logs/report_<timestamp>.txt`, in plain text without colors. Use it to hand a client a record of what was changed on the device. It is saved for dry runs too, so you can keep the "before" report.
+
+```bash
+python android_debloater.py --run --ai --cloud --report
+```
 
 ## Audit (`--audit`)
 

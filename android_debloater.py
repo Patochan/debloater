@@ -329,6 +329,23 @@ class ColorStream:
         return getattr(self._stream, name)
 
 
+class TeeStream:
+    """Writes output to the console and to a report file (flushed at once, so nothing is lost)."""
+
+    def __init__(self, stream, report_file):
+        self._stream = stream
+        self._file = report_file
+
+    def write(self, text: str) -> int:
+        self._stream.write(text)
+        self._file.write(text)
+        self._file.flush()
+        return len(text)
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+
 def setup_colors(disabled: bool) -> None:
     """Color the output if it goes to a terminal and colors aren't disabled."""
     if disabled or os.environ.get("NO_COLOR") or not sys.stdout.isatty():
@@ -1413,6 +1430,8 @@ def main() -> None:
     parser.add_argument("--cloud", "--CLOUD", dest="cloud", action="store_true",
                         help="check cloud features (backup, sync, cloud apps) and, with --run, "
                              "turn them off / remove them")
+    parser.add_argument("--report", action="store_true",
+                        help="also save the output of this run as plain text in logs/")
     parser.add_argument("--audit", action="store_true",
                         help="list apps installed outside the Play Store (report only)")
     parser.add_argument("--location-device-only", action="store_true",
@@ -1437,6 +1456,12 @@ def main() -> None:
     parser.add_argument("--force", action="store_true",
                         help="with --restore: allow a backup from a different device")
     args = parser.parse_args()
+    if args.report:
+        args.no_color = True  # the report file must be plain text
+        os.makedirs(LOG_DIR, exist_ok=True)
+        report_path = os.path.join(LOG_DIR, f"report_{datetime.now():%Y%m%d_%H%M%S}.txt")
+        sys.stdout = TeeStream(sys.stdout, open(report_path, "w", encoding="utf-8"))
+        print(f"[INFO] Report is saved to: {report_path}")
     setup_colors(args.no_color)
     if args.screen_timeout is not None and args.screen_timeout < 10:
         parser.error("--screen-timeout must be at least 10 seconds")

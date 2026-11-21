@@ -107,6 +107,15 @@ class ParseSideloadedTest(unittest.TestCase):
                          [("com.b", "org.fdroid.fdroid"), ("com.c", "unknown")])
 
 
+class TeeStreamTest(unittest.TestCase):
+    def test_output_goes_to_console_and_report(self):
+        console, report = io.StringIO(), io.StringIO()
+        tee = ad.TeeStream(console, report)
+        tee.write("[OK] done\n")
+        self.assertEqual(console.getvalue(), "[OK] done\n")
+        self.assertEqual(report.getvalue(), "[OK] done\n")
+
+
 class ExpandPackagesTest(unittest.TestCase):
     def test_wildcard_is_expanded_and_duplicates_dropped(self):
         installed = {"com.x.one", "com.x.two", "com.other"}
