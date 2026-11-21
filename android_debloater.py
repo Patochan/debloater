@@ -54,6 +54,8 @@ COMMON_SETTINGS = [
     ("global", "send_action_app_error", "0"),
     # Remove the bug report shortcut from the power menu (reports contain a lot of data)
     ("global", "bug_report", "0"),
+    # Wi-Fi: a new random MAC address per network connection, so networks can't track the phone's hardware address
+    ("global", "non_persistent_mac_randomization_force_enabled", "1"),
 ]
 
 # Battery runtime settings, only applied with --battery (trade-offs, not privacy)

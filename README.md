@@ -171,6 +171,7 @@ export NO_COLOR=1                                        # Linux / macOS / Git B
 | `global/wifi_wakeup_enabled` | 0 | Don't turn Wi-Fi back on automatically near saved networks |
 | `secure` + `global/send_action_app_error` | 0 | No "Send feedback" to Google in the app crash dialog |
 | `global/bug_report` | 0 | Remove the bug report shortcut from the power menu |
+| `global/non_persistent_mac_randomization_force_enabled` | 1 | Wi-Fi uses a new random MAC address for each network connection, so networks can't follow the phone by its hardware address. Checked on Android 17 (the key exists there); effect on individual routers not tested |
 
 **Samsung only:** `system/samsung_errorlog_agree=0` (no error reports to Samsung) and `system/nearby_scanning_enabled=0` (no constant scanning for nearby devices).
 
