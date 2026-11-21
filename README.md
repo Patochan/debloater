@@ -44,6 +44,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
 | `--ai` (or `--AI`) | Check AI features and list them; with `--run`, turn them off and remove AI system apps (see [AI and cloud features](#ai-and-cloud-features)). |
 | `--cloud` | Check cloud features (backup, sync, cloud apps); with `--run`, turn them off and remove cloud system apps (see [AI and cloud features](#ai-and-cloud-features)). |
+| `--background-off PKG[,PKG...]` | Stop these apps from running in the background (Android `appops` `RUN_ANY_IN_BACKGROUND`). Not undone by `--restore`; see [Background activity](#background-activity---background-off). |
 | `--report` | Also save the whole output of the run as plain text in `logs/report_<timestamp>.txt`. Implies `--no-color`. |
 | `--audit` | Report only: list apps installed outside the Play Store, with the installer that put them on the phone. Changes nothing. |
 | `--location-device-only` | Location from the phone's GPS only, no Google network location (`secure/location_mode` 3 → 1). Trade-off: less accurate location. |
@@ -269,6 +270,20 @@ The vendor profile is chosen from `ro.product.manufacturer`. If none of the vend
 
 ```bash
 python android_debloater.py --run --ai --cloud --report
+```
+
+## Background activity (`--background-off`)
+
+`--background-off PKG[,PKG...]` stops the named apps from starting or running when they are not open. Use it for apps that keep running for no reason, e.g. after the audit found them. Apps you open still work normally. Package names are checked before they are sent to the phone (only letters, digits, `_` and `.`).
+
+```bash
+python android_debloater.py --background-off com.example.app,com.other.app
+```
+
+**Undo:** this is not part of `--restore`. Run for each app:
+
+```bash
+adb shell cmd appops set com.example.app RUN_ANY_IN_BACKGROUND default
 ```
 
 ## Audit (`--audit`)

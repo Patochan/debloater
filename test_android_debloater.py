@@ -2,6 +2,7 @@
 
 Run from the repo folder:  python -m unittest -v
 """
+import argparse
 import contextlib
 import io
 import os
@@ -114,6 +115,17 @@ class TeeStreamTest(unittest.TestCase):
         tee.write("[OK] done\n")
         self.assertEqual(console.getvalue(), "[OK] done\n")
         self.assertEqual(report.getvalue(), "[OK] done\n")
+
+
+class PackageListTest(unittest.TestCase):
+    def test_names_are_split_and_checked(self):
+        self.assertEqual(ad.package_list("com.a.b, com.c"), ["com.a.b", "com.c"])
+
+    def test_shell_characters_are_rejected(self):
+        # Names are sent to the phone's shell, so anything but a package name is refused
+        for bad in ["com.a;reboot", "com.a b", "nodots", "com.a$(id)"]:
+            with self.subTest(bad=bad), self.assertRaises(argparse.ArgumentTypeError):
+                ad.package_list(bad)
 
 
 class ExpandPackagesTest(unittest.TestCase):

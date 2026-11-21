@@ -609,6 +609,18 @@ def detect_device() -> dict[str, str]:
     return info
 
 
+PACKAGE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$")
+
+
+def package_list(text: str) -> list[str]:
+    """Parse 'pkg1,pkg2' from the command line. Names go to the phone's shell, so check them."""
+    names = [p.strip() for p in text.split(",") if p.strip()]
+    bad = [p for p in names if not PACKAGE_NAME_RE.match(p)]
+    if bad:
+        raise argparse.ArgumentTypeError(f"not a package name: {', '.join(bad)}")
+    return names
+
+
 def safe_filename_part(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "_", text).strip("_") or "unknown"
 
@@ -962,6 +974,31 @@ def set_listener_access(component: str, allow: bool) -> tuple[bool, str]:
             return True, ""
         time.sleep(1)
     return False, err or out
+
+
+def restrict_background(packages: list[str], installed: set[str], apply: bool) -> None:
+    """Stop chosen apps from running in the background (appops; undo with 'set ... default')."""
+    print("\n--- Background activity ---")
+    for pkg in packages:
+        if pkg not in installed:
+            print(f"[SKIP] {pkg} - not installed")
+            continue
+        if background_is_off(pkg):
+            print(f"[OK]   {pkg} - background activity already off")
+            continue
+        if not apply:
+            print(f"[DRY]  {pkg}: background activity would be turned off")
+            continue
+        run_adb(["shell", "cmd", "appops", "set", pkg, "RUN_ANY_IN_BACKGROUND", "ignore"])
+        if background_is_off(pkg):
+            print(f"[SET]  {pkg}: background activity off")
+        else:
+            print(f"[WARN] {pkg}: could not turn off background activity")
+
+
+def background_is_off(pkg: str) -> bool:
+    _, out, _ = run_adb(["shell", "cmd", "appops", "get", pkg, "RUN_ANY_IN_BACKGROUND"])
+    return "RUN_ANY_IN_BACKGROUND: ignore" in out
 
 
 def revoke_notification_access(packages: list[str], apply: bool) -> None:
@@ -1430,6 +1467,9 @@ def main() -> None:
     parser.add_argument("--cloud", "--CLOUD", dest="cloud", action="store_true",
                         help="check cloud features (backup, sync, cloud apps) and, with --run, "
                              "turn them off / remove them")
+    parser.add_argument("--background-off", metavar="PKG[,PKG...]", type=package_list,
+                        help="stop these apps from running in the background (undo: "
+                             "cmd appops set PKG RUN_ANY_IN_BACKGROUND default)")
     parser.add_argument("--report", action="store_true",
                         help="also save the output of this run as plain text in logs/")
     parser.add_argument("--audit", action="store_true",
@@ -1559,6 +1599,8 @@ def main() -> None:
         revoke_notification_access(
             [p.strip() for p in args.revoke_notifications.split(",") if p.strip()], apply)
     remove_packages(packages, installed, disabled, apply)
+    if args.background_off:
+        restrict_background(args.background_off, installed, apply)
 
     print("\n--- Manual recommendations ---")
     # Disabled packages don't run, so they don't need a "still installed" tip
