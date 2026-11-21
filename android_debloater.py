@@ -448,6 +448,63 @@ def list_packages(*flags: str) -> set[str]:
     return {line.replace("package:", "").strip() for line in out.splitlines() if line.strip()}
 
 
+SENSITIVE_APP_OPS = {  # appops name -> what it allows (shown by --audit)
+    "CAMERA": "camera",
+    "RECORD_AUDIO": "microphone",
+    "FINE_LOCATION": "precise location",
+    "COARSE_LOCATION": "approximate location",
+    "READ_CONTACTS": "contacts",
+    "READ_SMS": "SMS",
+    "READ_CALL_LOG": "call log",
+    "SYSTEM_ALERT_WINDOW": "draw over other apps",
+    "GET_USAGE_STATS": "see which apps you use",
+    "REQUEST_INSTALL_PACKAGES": "install other apps",
+}
+
+
+def sensitive_access(pkg: str) -> list[str]:
+    """Human names of the sensitive operations an app is allowed (appops 'allow' or 'foreground')."""
+    _, out, _ = run_adb(["shell", "cmd", "appops", "get", pkg])
+    return parse_sensitive_access(out)
+
+
+def parse_sensitive_access(out: str) -> list[str]:
+    """Parse 'cmd appops get PKG' lines like 'CAMERA: allow'; keep the sensitive ones."""
+    granted = []
+    for line in out.replace("Uid mode: ", "").splitlines():
+        m = re.match(r"^(\w+): (allow|foreground)(;.*)?$", line.strip())  # ';' adds timestamps
+        if m and m.group(1) in SENSITIVE_APP_OPS:
+            granted.append(SENSITIVE_APP_OPS[m.group(1)])
+    return list(dict.fromkeys(granted))  # the listing can repeat an operation
+
+
+def input_and_access_services() -> list[str]:
+    """Keyboard, autofill, accessibility and device admins: each can see or control the phone."""
+    tips = []
+    keyboard = get_setting("secure", "default_input_method")
+    if keyboard:
+        tips.append(f"Keyboard (sees everything you type): {keyboard.split('/')[0]}")
+    autofill = get_setting("secure", "autofill_service")
+    if autofill:
+        tips.append(f"Autofill service (sees passwords and addresses): {autofill.split('/')[0]}")
+    accessibility = get_setting("secure", "enabled_accessibility_services")
+    if accessibility:
+        names = sorted({c.split("/")[0] for c in accessibility.split(":") if "/" in c})
+        tips.append(f"Accessibility services (can read the whole screen): {', '.join(names)}")
+    admins = device_admins()
+    if admins:
+        tips.append(f"Device admin apps (can lock or wipe the phone): {', '.join(admins)}")
+    return tips
+
+
+def device_admins() -> list[str]:
+    _, out, _ = run_adb(["shell", "dumpsys", "device_policy"])
+    if "Enabled Device Admins" not in out:
+        return []
+    section = out.split("Enabled Device Admins", 1)[1].split("Default admin policy", 1)[0]
+    return sorted(set(re.findall(r"ComponentInfo\{([^/}]+)/", section)))
+
+
 def sideloaded_apps() -> list[tuple[str, str]]:
     """Third-party apps not installed from the Play Store: (package, installer)."""
     _, out, _ = run_adb(["shell", "pm", "list", "packages", "-3", "-i"])
@@ -1583,7 +1640,9 @@ def main() -> None:
 
     report = parser.add_argument_group("reports and output")
     report.add_argument("--audit", action="store_true",
-                        help="list apps installed outside the Play Store (report only)")
+                        help="report only: apps installed outside the Play Store, what third-party "
+                             "apps can access (camera, microphone, location ...), keyboard, "
+                             "autofill, accessibility and device admins")
     report.add_argument("--report", action="store_true",
                         help="also save this run's output as plain text in logs/")
     report.add_argument("--no-color", action="store_true",
@@ -1732,6 +1791,23 @@ def main() -> None:
             print("  None found.")
         for pkg, installer in apps:
             print(f"[INFO] {pkg} (installed by {installer})")
+
+        print("\n--- Access granted to third-party apps ---")
+        found = False
+        for pkg in sorted(list_packages("-3")):
+            access = sensitive_access(pkg)
+            if access:
+                found = True
+                print(f"[INFO] {pkg}: {', '.join(access)}")
+        if not found:
+            print("  None found.")
+
+        print("\n--- Keyboard, autofill, accessibility, device admins ---")
+        services = input_and_access_services()
+        if not services:
+            print("  None found.")
+        for tip in services:
+            print(f"[INFO] {tip}")
 
     active = installed - disabled
     for flag, title, func in ((args.ai, "AI", ai_recommendations),

@@ -324,13 +324,25 @@ adb shell cmd appops set com.example.app RUN_ANY_IN_BACKGROUND default
 
 ## Audit (`--audit`)
 
-`--audit` lists third-party apps that were not installed from the Play Store, with the installer shown in brackets. Apps from F-Droid, Aptoide, a file manager or Samsung's Galaxy Store appear too, and so do apps whose installer is unknown. It only reports: review the list and uninstall what isn't wanted, e.g. with `adb uninstall` or in the phone's app list.
+`--audit` reports four things. It changes nothing; review the results and act on them with the other options or in the phone's settings.
+
+1. **Apps installed outside the Play Store**, with the installer shown in brackets. Apps from F-Droid, Aptoide, a file manager or Samsung's Galaxy Store appear too, and so do apps whose installer is unknown.
+2. **Access granted to third-party apps**: camera, microphone, precise or approximate location, contacts, SMS, call log, drawing over other apps, usage access (seeing which apps you use) and installing other apps. Only apps with the access allowed are listed. System apps are not checked.
+3. **Keyboard and autofill**: the keyboard sees everything you type; the autofill service sees passwords and addresses.
+4. **Accessibility services** (can read the whole screen) and **device admin apps** (can lock or wipe the phone).
 
 ```
 --- Apps installed outside the Play Store ---
 [INFO] org.fdroid.fdroid (installed by org.fdroid.fdroid)
-[INFO] cm.aptoide.pt (installed by com.android.packageinstaller)
+
+--- Access granted to third-party apps ---
+[INFO] com.example.voip: microphone, draw over other apps
+
+--- Keyboard, autofill, accessibility, device admins ---
+[INFO] Keyboard (sees everything you type): com.android.inputmethod.latin
 ```
+
+The matching options to act on what the audit shows: `--revoke-permissions`, `--block-install`, `--revoke-overlay`, `--revoke-usage`, `--background-off`.
 
 ## Manual recommendations
 

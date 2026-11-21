@@ -148,6 +148,28 @@ class BlockedUidsTest(unittest.TestCase):
             self.assertEqual(ad.blocked_background_uids(), ["none"])  # 'none' never equals a uid
 
 
+class AuditParseTest(unittest.TestCase):
+    def test_sensitive_app_ops_are_found(self):
+        out = ("Uid mode: COARSE_LOCATION: foreground\n"
+               "FINE_LOCATION: foreground\n"
+               "CAMERA: ignore\n"
+               "SYSTEM_ALERT_WINDOW: allow; time=+1d4h ago; duration=+6s\n"
+               "SOME_OTHER_OP: allow\n"
+               "RECORD_AUDIO: allow\n"
+               "RECORD_AUDIO: allow; time=+1d ago\n")
+        self.assertEqual(ad.parse_sensitive_access(out),
+                         ["approximate location", "precise location", "draw over other apps",
+                          "microphone"])
+
+    def test_device_admins_are_read_from_their_section(self):
+        out = ("Enabled Device Admins (User 0):\n"
+               "  ComponentInfo{com.example.mdm/.AdminReceiver}\n"
+               "Default admin policy size limit: -1\n"
+               "  ComponentInfo{com.later/.Ignored}\n")
+        with unittest.mock.patch.object(ad, "run_adb", return_value=(0, out, "")):
+            self.assertEqual(ad.device_admins(), ["com.example.mdm"])
+
+
 class ExpandPackagesTest(unittest.TestCase):
     def test_wildcard_is_expanded_and_duplicates_dropped(self):
         installed = {"com.x.one", "com.x.two", "com.other"}
