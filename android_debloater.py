@@ -130,7 +130,6 @@ COMMON_PACKAGES = [
 COMMON_OPTIONAL_PACKAGES = [
     "com.google.android.videos",           # Google TV (Play Movies & TV)
     "com.google.android.apps.tachyon",     # Google Meet / Duo calling
-    "com.google.android.apps.restore",     # restore from Google backup during setup
     "com.google.android.apps.magazines",   # Google News
     "com.google.android.apps.plus",        # Google+ (discontinued)
     "com.google.android.talk",             # Hangouts (old)
@@ -154,6 +153,7 @@ COMMON_OPTIONAL_PACKAGES = [
 # Google apps removed only with --cloud (all devices)
 COMMON_CLOUD_PACKAGES = [
     "com.google.android.apps.uploader",    # Google Photos uploader (old Picasa sync)
+    "com.google.android.apps.restore",     # restore from Google backup during setup
 ]
 
 # Location settings, only changed with --location-device-only (trade-off: less accurate location)

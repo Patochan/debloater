@@ -42,7 +42,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `-s`, `--serial SERIAL` | Choose a device by serial number. Defaults to `ANDROID_SERIAL`. If several devices are connected and none is chosen, the script asks which one to use. |
 | `--private-dns HOST` | Set a fixed Private DNS provider, e.g. `dns.quad9.net`, and check that it works (see [Private DNS](#private-dns)). |
 | `--disable-agps` | Turn off Assisted GPS, which sends cell tower info to Google. The trade-off is a slower first GPS fix. |
-| `--include-optional` | Also remove optional packages: Google TV, Meet and Restore on all devices; on Samsung, Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, Smart View, Themes, DeX, Samsung Video, Reminder, Edge panel extras; on CUBOT, Digital Wellbeing and the tracing tool; on Huawei, Huawei Video, AppGallery, Huawei Weather and the guides; on all devices, Google News, Hangouts, Play Music, Sony media and notes apps and CyanogenMod extras; and more (see [Packages](#packages)). |
+| `--include-optional` | Also remove optional packages: Google TV and Meet on all devices (Google Restore is under `--cloud`); on Samsung, Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, Smart View, Themes, DeX, Samsung Video, Reminder, Edge panel extras; on CUBOT, Digital Wellbeing and the tracing tool; on Huawei, Huawei Video, AppGallery, Huawei Weather and the guides; on all devices, Google News, Hangouts, Play Music, Sony media and notes apps and CyanogenMod extras; and more (see [Packages](#packages)). |
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
 | `--ai` (or `--AI`) | Check AI features and list them; with `--run`, turn them off and remove AI system apps (see [AI and cloud features](#ai-and-cloud-features)). |
 | `--cloud` | Check cloud features (backup, sync, cloud apps); with `--run`, turn them off and remove cloud system apps (see [AI and cloud features](#ai-and-cloud-features)). |
@@ -269,7 +269,6 @@ The tables below explain every package the script can remove: what it is, why it
 |---|---|---|---|
 | `com.google.android.videos` | Google TV (Play Movies & TV) | Unused unless you rent or watch movies in the app | Google TV app |
 | `com.google.android.apps.tachyon` | Google Meet / Duo calling | Unused unless you call with Google Meet or Duo | Google Meet and Duo calls |
-| `com.google.android.apps.restore` | Restore from Google backup | Only needed during setup on a new phone | Restoring data from a Google backup during setup |
 | `com.google.android.apps.magazines` | Google News | Unused news feed | Google News |
 | `com.google.android.apps.plus` | Google+ | Discontinued service, unused | Nothing (the service is shut down) |
 | `com.google.android.talk` | Hangouts | Old messaging app, mostly replaced by Google Messages and Meet | Hangouts chats and calls |
@@ -406,6 +405,7 @@ Removed by default:
 | Package | What it is | Why it's removed | What stops working |
 |---|---|---|---|
 | `com.google.android.apps.uploader` | Google Photos uploader (old Picasa sync) | Old sync tool that uploads photos to Google | Automatic photo upload from the old uploader |
+| `com.google.android.apps.restore` | Restore from Google backup | Only needed during setup on a new phone | Restoring data from a Google backup during setup |
 | `com.samsung.android.scloud` | Samsung Cloud | Backup and sync of Samsung data (contacts, calendar, notes, settings) to Samsung's servers | Samsung Cloud backup and sync; the Samsung account itself keeps working |
 | `com.microsoft.skydrive` | OneDrive (preinstalled) | Cloud storage, e.g. for Gallery sync | OneDrive and Gallery sync to OneDrive |
 
