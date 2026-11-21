@@ -423,10 +423,6 @@ def list_packages(*flags: str) -> set[str]:
     return {line.replace("package:", "").strip() for line in out.splitlines() if line.strip()}
 
 
-def get_installed_packages() -> set[str]:
-    return list_packages()
-
-
 # ---------------------------------------------------------------------------
 # Device selection & detection
 # ---------------------------------------------------------------------------
@@ -1442,7 +1438,7 @@ def main() -> None:
             ask_reboot()
         return
 
-    installed = get_installed_packages()
+    installed = list_packages()
 
     empty_profile = {"settings": [], "packages": [], "optional_packages": []}
     profile = VENDOR_PROFILES.get(dev["profile"])
