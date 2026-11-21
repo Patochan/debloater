@@ -98,6 +98,15 @@ class ManagedSettingsTest(unittest.TestCase):
         self.assertIn(("secure", "location_mode"), ad.managed_settings())
 
 
+class ParseSideloadedTest(unittest.TestCase):
+    def test_play_store_apps_are_left_out(self):
+        out = ("package:com.a  installer=com.android.vending\n"
+               "package:com.b  installer=org.fdroid.fdroid\n"
+               "package:com.c  installer=null\n")
+        self.assertEqual(ad.parse_sideloaded(out),
+                         [("com.b", "org.fdroid.fdroid"), ("com.c", "unknown")])
+
+
 class ExpandPackagesTest(unittest.TestCase):
     def test_wildcard_is_expanded_and_duplicates_dropped(self):
         installed = {"com.x.one", "com.x.two", "com.other"}

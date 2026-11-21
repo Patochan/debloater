@@ -431,6 +431,22 @@ def list_packages(*flags: str) -> set[str]:
     return {line.replace("package:", "").strip() for line in out.splitlines() if line.strip()}
 
 
+def sideloaded_apps() -> list[tuple[str, str]]:
+    """Third-party apps not installed from the Play Store: (package, installer)."""
+    _, out, _ = run_adb(["shell", "pm", "list", "packages", "-3", "-i"])
+    return parse_sideloaded(out)
+
+
+def parse_sideloaded(out: str) -> list[tuple[str, str]]:
+    """Parse 'pm list packages -3 -i' lines; keep apps whose installer is not the Play Store."""
+    apps = []
+    for line in out.splitlines():
+        m = re.match(r"package:(\S+)\s+installer=(\S+)", line)
+        if m and m.group(2) != "com.android.vending":
+            apps.append((m.group(1), "unknown" if m.group(2) == "null" else m.group(2)))
+    return apps
+
+
 # ---------------------------------------------------------------------------
 # Device selection & detection
 # ---------------------------------------------------------------------------
@@ -1397,6 +1413,8 @@ def main() -> None:
     parser.add_argument("--cloud", "--CLOUD", dest="cloud", action="store_true",
                         help="check cloud features (backup, sync, cloud apps) and, with --run, "
                              "turn them off / remove them")
+    parser.add_argument("--audit", action="store_true",
+                        help="list apps installed outside the Play Store (report only)")
     parser.add_argument("--location-device-only", action="store_true",
                         help="location from the device's GPS only, no Google network location "
                              "(less accurate)")
@@ -1531,6 +1549,14 @@ def main() -> None:
         print("  No battery issues found.")
     for i, tip in enumerate(battery_tips, 1):
         print(f"  {i}. {tip}")
+
+    if args.audit:
+        print("\n--- Apps installed outside the Play Store ---")
+        apps = sideloaded_apps()
+        if not apps:
+            print("  None found.")
+        for pkg, installer in apps:
+            print(f"[INFO] {pkg} (installed by {installer})")
 
     active = installed - disabled
     for flag, title, func in ((args.ai, "AI", ai_recommendations),
