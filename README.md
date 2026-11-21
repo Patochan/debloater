@@ -42,7 +42,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `-s`, `--serial SERIAL` | Choose a device by serial number. Defaults to `ANDROID_SERIAL`. If several devices are connected and none is chosen, the script asks which one to use. |
 | `--private-dns HOST` | Set a fixed Private DNS provider, e.g. `dns.quad9.net`, and check that it works (see [Private DNS](#private-dns)). |
 | `--disable-agps` | Turn off Assisted GPS, which sends cell tower info to Google. The trade-off is a slower first GPS fix. |
-| `--include-optional` | Also remove optional packages: Google TV, Meet and Restore on all devices; on Samsung, Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, Smart View, Themes, DeX, Samsung Video, Reminder, Edge panel extras and more (see [Packages](#packages)). |
+| `--include-optional` | Also remove optional packages: Google TV, Meet and Restore on all devices; on Samsung, Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, Smart View, Themes, DeX, Samsung Video, Reminder, Edge panel extras; on CUBOT, Digital Wellbeing and the tracing tool; and more (see [Packages](#packages)). |
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
 | `--ai` (or `--AI`) | Check AI features and list them; with `--run`, turn them off and remove AI system apps (see [AI and cloud features](#ai-and-cloud-features)). |
 | `--cloud` | Check cloud features (backup, sync, cloud apps); with `--run`, turn them off and remove cloud system apps (see [AI and cloud features](#ai-and-cloud-features)). |
@@ -278,6 +278,28 @@ The tables below explain every package the script can remove: what it is, why it
 | `com.miui.analytics` | MIUI Analytics | Telemetry: sends usage statistics to Xiaomi | Nothing noticeable |
 | `com.miui.msa.global` | MIUI System Ads (MSA) | Ads: shows ads in system apps | Ads in system apps (fewer ads) |
 | `com.miui.daemon` | MiuiDaemon | Telemetry: collects device and usage statistics | Nothing noticeable |
+
+#### CUBOT (CUBOT firmware only, skipped on custom ROMs)
+
+The profile is detected by the factory test apps `com.freemeimp.factory` or `com.teksun.newfactorytest`, or the MediaTek engineer menu `com.mediatek.engineermode`.
+
+| Package | What it is | Why it's removed | What stops working |
+|---|---|---|---|
+| `com.mediatek.engineermode` | MediaTek engineer menu | Hardware debug menu that doesn't belong on a phone in daily use | Engineer menu (service codes for hardware tests) |
+| `com.freemeimp.factory` | Factory test app | Only used at the factory to test hardware | Factory hardware tests |
+| `com.teksun.newfactorytest` | Factory test app | Only used at the factory to test hardware | Factory hardware tests |
+| `com.sagatest` | Test app left on the firmware | Not needed in daily use | Nothing noticeable |
+| `com.debug.loggerui` | Debug logger UI | Debug tool that records system logs | Debug log viewer |
+
+**Optional** (only with `--include-optional`):
+
+| Package | What it is | Why it's removed | What stops working |
+|---|---|---|---|
+| `com.mediatek.ygps` | MediaTek GPS test tool | Only for GPS engineering | GPS test tool |
+| `com.mediatek.lbs.em2.ui` | MediaTek location engineering UI | Only for location engineering | Location engineering UI |
+| `com.google.android.apps.wellbeing` | Digital Wellbeing | Unused if you don't track screen time | Screen time and Focus mode |
+| `com.google.android.printservice.recommendation` | Print service suggestions | Suggests print services via Google | Print service suggestions |
+| `com.android.traceur` | System tracing tool | Developer tool for recording system traces | System trace recording |
 
 #### AI (only with `--ai`)
 

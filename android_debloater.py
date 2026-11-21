@@ -243,6 +243,24 @@ VENDOR_PROFILES = {
         ],
         "optional_packages": [],
     },
+    "cubot": {
+        "marker_packages": ["com.freemeimp.factory", "com.teksun.newfactorytest"],
+        "settings": [],
+        "packages": [
+            "com.mediatek.engineermode",           # MediaTek engineer menu (hardware debug tool)
+            "com.freemeimp.factory",               # factory test app
+            "com.teksun.newfactorytest",           # factory test app
+            "com.sagatest",                        # test app left on the firmware
+            "com.debug.loggerui",                  # debug logger UI
+        ],
+        "optional_packages": [
+            "com.mediatek.ygps",                   # MediaTek GPS test tool
+            "com.mediatek.lbs.em2.ui",             # MediaTek location engineering UI
+            "com.google.android.apps.wellbeing",   # Digital Wellbeing
+            "com.google.android.printservice.recommendation",  # print service suggestions
+            "com.android.traceur",                 # system tracing tool
+        ],
+    },
 }
 # Short labels shown next to package names in the output (details: README).
 # Keys ending in "." match every package with that prefix.
@@ -322,6 +340,16 @@ PACKAGE_LABELS = {
     "com.samsung.android.app.smartcapture": "Smart Capture screenshot tools",
     "com.samsung.android.app.reminder": "Samsung Reminder",
     "com.samsung.android.app.camera.sticker.facearavatar.preload": "AR avatar stickers (AR Emoji)",
+    "com.mediatek.engineermode": "MediaTek engineer menu",
+    "com.freemeimp.factory": "Factory test app",
+    "com.teksun.newfactorytest": "Factory test app",
+    "com.sagatest": "Test app",
+    "com.debug.loggerui": "Debug logger UI",
+    "com.mediatek.ygps": "MediaTek GPS test tool",
+    "com.mediatek.lbs.em2.ui": "MediaTek location engineering UI",
+    "com.google.android.apps.wellbeing": "Digital Wellbeing",
+    "com.google.android.printservice.recommendation": "Print service suggestions",
+    "com.android.traceur": "System tracing tool",
 }
 
 
@@ -1702,7 +1730,8 @@ def main() -> None:
     run.add_argument("--include-optional", action="store_true",
                      help="also remove optional packages (Google: Google TV, Meet, Restore; Samsung: "
                           "Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, "
-                          "Smart View, Themes, DeX, Samsung Video, Reminder and more)")
+                          "Smart View, Themes, DeX, Samsung Video, Reminder; CUBOT: Digital Wellbeing, "
+                          "tracing tool and more)")
     run.add_argument("--battery", action="store_true",
                      help="also apply battery settings (no mobile data on Wi-Fi, Adaptive "
                           "Battery on, 60 Hz if forced higher)")
