@@ -45,6 +45,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `--ai` (or `--AI`) | Check AI features and list them; with `--run`, turn them off and remove AI system apps (see [AI and cloud features](#ai-and-cloud-features)). |
 | `--cloud` | Check cloud features (backup, sync, cloud apps); with `--run`, turn them off and remove cloud system apps (see [AI and cloud features](#ai-and-cloud-features)). |
 | `--revoke-permissions PKG:PERM[,...]` | Take a permission (location, camera, microphone, contacts ...) away from an app. Not undone by `--restore`; see [App permissions](#app-permissions---revoke-permissions). |
+| `--block-background-data PKG[,PKG...]` | Block mobile and Wi-Fi data for these apps while they are in the background. Not undone by `--restore`; see [Background data](#background-data---block-background-data). |
 | `--background-off PKG[,PKG...]` | Stop these apps from running in the background (Android `appops` `RUN_ANY_IN_BACKGROUND`). Not undone by `--restore`; see [Background activity](#background-activity---background-off). |
 | `--report` | Also save the whole output of the run as plain text in `logs/report_<timestamp>.txt`. Implies `--no-color`. |
 | `--audit` | Report only: list apps installed outside the Play Store, with the installer that put them on the phone. Changes nothing. |
@@ -288,6 +289,22 @@ adb shell pm grant --user 0 com.example.app android.permission.CAMERA
 ```
 
 Tested on the phone with a browser's location permission: revoked, then granted back. The grant-back restores the permission but may not restore the exact internal flags Android shows for it.
+
+## Background data (`--block-background-data`)
+
+`--block-background-data PKG[,PKG...]` stops the named apps from using mobile or Wi-Fi data while they are in the background. Apps you open still have data. Android's own "restrict background data" switch is used, so no root is needed.
+
+This is **not** a full internet block: an app can still use data while it is open, and apps on the phone that use no data in the background are unaffected. A complete block for every app state needs a rooted phone, which this script does not support.
+
+```bash
+python android_debloater.py --block-background-data com.example.app
+```
+
+**Undo:** this is not part of `--restore`. Find the app's user ID with `adb shell pm list packages -U com.example.app` (the number after `uid:`), then:
+
+```bash
+adb shell cmd netpolicy remove restrict-background-blacklist 10206
+```
 
 ## Background activity (`--background-off`)
 

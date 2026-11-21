@@ -140,6 +140,14 @@ class PermissionListTest(unittest.TestCase):
                 ad.permission_list(bad)
 
 
+class BlockedUidsTest(unittest.TestCase):
+    def test_parses_list_output(self):
+        with unittest.mock.patch.object(ad, "run_adb", return_value=(0, "Restrict background blacklisted UIDs: 10206 10300 ", "")):
+            self.assertEqual(ad.blocked_background_uids(), ["10206", "10300"])
+        with unittest.mock.patch.object(ad, "run_adb", return_value=(0, "Restrict background blacklisted UIDs: none", "")):
+            self.assertEqual(ad.blocked_background_uids(), ["none"])  # 'none' never equals a uid
+
+
 class ExpandPackagesTest(unittest.TestCase):
     def test_wildcard_is_expanded_and_duplicates_dropped(self):
         installed = {"com.x.one", "com.x.two", "com.other"}

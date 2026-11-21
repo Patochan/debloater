@@ -1034,6 +1034,41 @@ def permission_granted(pkg: str, perm: str) -> bool:
     return f"{perm}: granted=true" in out
 
 
+def block_background_data(packages: list[str], installed: set[str], apply: bool) -> None:
+    """Block mobile/Wi-Fi data for chosen apps while they are in the background (netpolicy)."""
+    print("\n--- Background data ---")
+    for pkg in packages:
+        if pkg not in installed:
+            print(f"[SKIP] {pkg} - not installed")
+            continue
+        uid = package_uid(pkg)
+        if uid is None:
+            print(f"[WARN] {pkg}: could not read its user ID")
+            continue
+        if uid in blocked_background_uids():
+            print(f"[OK]   {pkg} - background data already blocked")
+            continue
+        if not apply:
+            print(f"[DRY]  {pkg}: background data would be blocked")
+            continue
+        run_adb(["shell", "cmd", "netpolicy", "add", "restrict-background-blacklist", uid])
+        if uid in blocked_background_uids():
+            print(f"[SET]  {pkg}: background data blocked")
+        else:
+            print(f"[WARN] {pkg}: could not block background data")
+
+
+def package_uid(pkg: str) -> str | None:
+    _, out, _ = run_adb(["shell", "pm", "list", "packages", "-U", pkg])
+    m = re.search(rf"^package:{re.escape(pkg)} uid:(\d+)", out, re.MULTILINE)
+    return m.group(1) if m else None
+
+
+def blocked_background_uids() -> list[str]:
+    _, out, _ = run_adb(["shell", "cmd", "netpolicy", "list", "restrict-background-blacklist"])
+    return out.split(":", 1)[-1].split()  # "...UIDs: 10206 " or "...UIDs: none"
+
+
 def background_is_off(pkg: str) -> bool:
     _, out, _ = run_adb(["shell", "cmd", "appops", "get", pkg, "RUN_ANY_IN_BACKGROUND"])
     return "RUN_ANY_IN_BACKGROUND: ignore" in out
@@ -1509,6 +1544,9 @@ def main() -> None:
                         type=permission_list,
                         help="take a permission away from an app, e.g. com.x:CAMERA "
                              "(undo: pm grant --user 0 PKG PERMISSION)")
+    parser.add_argument("--block-background-data", metavar="PKG[,PKG...]", type=package_list,
+                        help="block mobile and Wi-Fi data for these apps while in the "
+                             "background (undo: cmd netpolicy remove restrict-background-blacklist UID)")
     parser.add_argument("--background-off", metavar="PKG[,PKG...]", type=package_list,
                         help="stop these apps from running in the background (undo: "
                              "cmd appops set PKG RUN_ANY_IN_BACKGROUND default)")
@@ -1645,6 +1683,8 @@ def main() -> None:
         revoke_permissions(args.revoke_permissions, installed, apply)
     if args.background_off:
         restrict_background(args.background_off, installed, apply)
+    if args.block_background_data:
+        block_background_data(args.block_background_data, installed, apply)
 
     print("\n--- Manual recommendations ---")
     # Disabled packages don't run, so they don't need a "still installed" tip
