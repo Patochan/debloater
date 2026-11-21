@@ -1045,24 +1045,28 @@ def set_listener_access(component: str, allow: bool) -> tuple[bool, str]:
     return False, err or out
 
 
-def restrict_background(packages: list[str], installed: set[str], apply: bool) -> None:
-    """Stop chosen apps from running in the background (appops; undo with 'set ... default')."""
-    print("\n--- Background activity ---")
+def set_app_op(packages: list[str], installed: set[str], apply: bool,
+               op: str, what: str) -> None:
+    """Deny one appops permission (e.g. RUN_ANY_IN_BACKGROUND) for chosen apps.
+
+    Undo for each app: cmd appops set PKG OP default.
+    """
+    print(f"\n--- {what[0].upper() + what[1:]} ---")
     for pkg in packages:
         if pkg not in installed:
             print(f"[SKIP] {pkg} - not installed")
             continue
-        if background_is_off(pkg):
-            print(f"[OK]   {pkg} - background activity already off")
+        if app_op_is_denied(pkg, op):
+            print(f"[OK]   {pkg} - {what} already off")
             continue
         if not apply:
-            print(f"[DRY]  {pkg}: background activity would be turned off")
+            print(f"[DRY]  {pkg}: {what} would be turned off")
             continue
-        run_adb(["shell", "cmd", "appops", "set", pkg, "RUN_ANY_IN_BACKGROUND", "ignore"])
-        if background_is_off(pkg):
-            print(f"[SET]  {pkg}: background activity off")
+        run_adb(["shell", "cmd", "appops", "set", pkg, op, "ignore"])
+        if app_op_is_denied(pkg, op):
+            print(f"[SET]  {pkg}: {what} off")
         else:
-            print(f"[WARN] {pkg}: could not turn off background activity")
+            print(f"[WARN] {pkg}: could not turn off {what}")
 
 
 def revoke_permissions(pairs: list[tuple[str, str]], installed: set[str], apply: bool) -> None:
@@ -1126,9 +1130,9 @@ def blocked_background_uids() -> list[str]:
     return out.split(":", 1)[-1].split()  # "...UIDs: 10206 " or "...UIDs: none"
 
 
-def background_is_off(pkg: str) -> bool:
-    _, out, _ = run_adb(["shell", "cmd", "appops", "get", pkg, "RUN_ANY_IN_BACKGROUND"])
-    return "RUN_ANY_IN_BACKGROUND: ignore" in out
+def app_op_is_denied(pkg: str, op: str) -> bool:
+    _, out, _ = run_adb(["shell", "cmd", "appops", "get", pkg, op])
+    return f"{op}: ignore" in out
 
 
 def revoke_notification_access(packages: list[str], apply: bool) -> None:
@@ -1631,6 +1635,9 @@ def main() -> None:
     per_app.add_argument("--background-off", metavar="PKG[,PKG...]", type=package_list,
                          help="stop apps running in the background (undo: cmd appops set "
                               "PKG RUN_ANY_IN_BACKGROUND default)")
+    per_app.add_argument("--block-install", metavar="PKG[,PKG...]", type=package_list,
+                         help="stop apps installing other apps (undo: cmd appops set PKG "
+                              "REQUEST_INSTALL_PACKAGES default)")  # overlay/usage: see README
     per_app.add_argument("--block-background-data", metavar="PKG[,PKG...]", type=package_list,
                          help="block mobile and Wi-Fi data for apps while in the background "
                               "(no root; undo: cmd netpolicy remove restrict-background-blacklist UID)")
@@ -1764,8 +1771,11 @@ def main() -> None:
     remove_packages(packages, installed, disabled, apply)
     if args.revoke_permissions:
         revoke_permissions(args.revoke_permissions, installed, apply)
-    if args.background_off:
-        restrict_background(args.background_off, installed, apply)
+    for names, op, what in (
+            (args.background_off, "RUN_ANY_IN_BACKGROUND", "background activity"),
+            (args.block_install, "REQUEST_INSTALL_PACKAGES", "installing other apps")):
+        if names:
+            set_app_op(names, installed, apply, op, what)
     if args.block_background_data:
         block_background_data(args.block_background_data, installed, apply)
 

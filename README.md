@@ -48,6 +48,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `--cloud` | Check cloud features (backup, sync, cloud apps); with `--run`, turn them off and remove cloud system apps (see [AI and cloud features](#ai-and-cloud-features)). |
 | `--revoke-permissions PKG:PERM[,...]` | Take a permission (location, camera, microphone, contacts ...) away from an app. Not undone by `--restore`; see [App permissions](#app-permissions---revoke-permissions). |
 | `--block-background-data PKG[,PKG...]` | Block mobile and Wi-Fi data for these apps while they are in the background. Not undone by `--restore`; see [Background data](#background-data---block-background-data). |
+| `--block-install PKG[,PKG...]` | Stop these apps from installing other apps (`REQUEST_INSTALL_PACKAGES`). Not undone by `--restore`; see [Installing other apps](#installing-other-apps---block-install). |
 | `--background-off PKG[,PKG...]` | Stop these apps from running in the background (Android `appops` `RUN_ANY_IN_BACKGROUND`). Not undone by `--restore`; see [Background activity](#background-activity---background-off). |
 | `--report` | Also save the whole output of the run as plain text in `logs/report_<timestamp>.txt`. Implies `--no-color`. |
 | `--audit` | Report only: list apps installed outside the Play Store, with the installer that put them on the phone. Changes nothing. |
@@ -308,6 +309,22 @@ python android_debloater.py --block-background-data com.example.app
 adb shell cmd netpolicy remove restrict-background-blacklist 10206
 ```
 
+## Installing other apps (`--block-install`)
+
+`--block-install PKG[,PKG...]` stops the named apps from installing other apps. Apps like browsers, file managers and app stores can ask Android to install an APK; this option denies that permission (Android's `REQUEST_INSTALL_PACKAGES`). The app itself keeps working. The audit lists the apps that have this permission.
+
+```bash
+python android_debloater.py --block-install com.example.browser
+```
+
+**Undo:** this is not part of `--restore`:
+
+```bash
+adb shell cmd appops set com.example.browser REQUEST_INSTALL_PACKAGES default
+```
+
+Not offered: denying "draw over other apps" (`SYSTEM_ALERT_WINDOW`) and "usage access" (`GET_USAGE_STATS`). On the tested phone (Android 17, LineageOS), `cmd appops set` silently keeps the old mode for these two, so the script would report success without changing anything. Change them by hand in Settings > Apps > Special app access.
+
 ## Background activity (`--background-off`)
 
 `--background-off PKG[,PKG...]` stops the named apps from starting or running when they are not open. Use it for apps that keep running for no reason, e.g. after the audit found them. Apps you open still work normally. Package names are checked before they are sent to the phone (only letters, digits, `_` and `.`).
@@ -342,7 +359,7 @@ adb shell cmd appops set com.example.app RUN_ANY_IN_BACKGROUND default
 [INFO] Keyboard (sees everything you type): com.android.inputmethod.latin
 ```
 
-The matching options to act on what the audit shows: `--revoke-permissions`, `--block-install`, `--revoke-overlay`, `--revoke-usage`, `--background-off`.
+The matching options to act on what the audit shows: `--revoke-permissions`, `--block-install`, `--background-off`, `--block-background-data`. Drawing over other apps and usage access can't be changed over adb on the tested phone (see [Installing other apps](#installing-other-apps---block-install)).
 
 ## Manual recommendations
 
