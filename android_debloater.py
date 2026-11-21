@@ -1507,74 +1507,98 @@ def battery_recommendations(dev: dict[str, str], battery_flag: bool) -> list[str
 def main() -> None:
     global SERIAL
     parser = argparse.ArgumentParser(
-        description="Android privacy debloater via ADB (default: dry run, nothing is changed)"
+        prog="android_debloater.py",
+        description="Privacy debloater for Android phones and tablets, over adb (no root needed).\n"
+                    "Dry run by default: nothing on the phone changes until you add --run.",
+        epilog="examples:\n"
+               "  python android_debloater.py                            dry run: show what would change\n"
+               "  python android_debloater.py --run                      apply the privacy settings\n"
+               "  python android_debloater.py --run --ai --cloud         also turn off AI and cloud features\n"
+               "  python android_debloater.py --audit --report           list sideloaded apps, save a report\n"
+               "  python android_debloater.py --restore logs/<backup>.txt --run   undo with a backup\n"
+               "\n"
+               "Every run first saves a settings backup in logs/. The README explains every option\n"
+               "and how to undo it.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("-s", "--serial", default=os.environ.get("ANDROID_SERIAL"),
-                        help="serial number of the device (if several are connected)")
-    parser.add_argument("--connect", metavar="HOST[:PORT]",
-                        help="connect to the device over the network (adb connect); "
-                             "default port 5555")
-    parser.add_argument("--pair", metavar="HOST:PORT",
-                        help="pair via Android 11+ Wireless debugging first (adb pair), "
-                             "then connect")
-    parser.add_argument("--pair-code", metavar="CODE",
-                        help="6-digit pairing code for --pair (asked for if missing)")
-    parser.add_argument("--tcpip", nargs="?", const=5555, type=int, metavar="PORT",
-                        help="switch the USB-connected device to network adb (default port "
-                             "5555) and continue over Wi-Fi")
-    parser.add_argument("--run", action="store_true",
-                        help="actually apply changes (without it: dry run only)")
-    parser.add_argument("--private-dns", metavar="HOST",
-                        help="set a fixed Private DNS provider, e.g. dns.quad9.net")
-    parser.add_argument("--disable-agps", action="store_true",
-                        help="turn off Assisted GPS (sends cell tower info to Google; "
-                             "first GPS fix gets slower)")
-    parser.add_argument("--include-optional", action="store_true",
-                        help="also remove optional packages (e.g. Bixby, Link to Windows)")
-    parser.add_argument("--battery", action="store_true",
-                        help="also apply battery runtime settings (mobile data not kept "
-                             "connected on Wi-Fi, Adaptive Battery on, no forced peak refresh rate)")
-    parser.add_argument("--ai", "--AI", dest="ai", action="store_true",
-                        help="check AI features (assistant, Gemini, Galaxy AI ...) and, with "
-                             "--run, turn them off / remove them")
-    parser.add_argument("--cloud", "--CLOUD", dest="cloud", action="store_true",
-                        help="check cloud features (backup, sync, cloud apps) and, with --run, "
-                             "turn them off / remove them")
-    parser.add_argument("--revoke-permissions", metavar="PKG:PERMISSION[,...]",
-                        type=permission_list,
-                        help="take a permission away from an app, e.g. com.x:CAMERA "
-                             "(undo: pm grant --user 0 PKG PERMISSION)")
-    parser.add_argument("--block-background-data", metavar="PKG[,PKG...]", type=package_list,
-                        help="block mobile and Wi-Fi data for these apps while in the "
-                             "background (undo: cmd netpolicy remove restrict-background-blacklist UID)")
-    parser.add_argument("--background-off", metavar="PKG[,PKG...]", type=package_list,
-                        help="stop these apps from running in the background (undo: "
-                             "cmd appops set PKG RUN_ANY_IN_BACKGROUND default)")
-    parser.add_argument("--report", action="store_true",
-                        help="also save the output of this run as plain text in logs/")
-    parser.add_argument("--audit", action="store_true",
+
+    conn = parser.add_argument_group("connection (USB or Wi-Fi)")
+    conn.add_argument("-s", "--serial", default=os.environ.get("ANDROID_SERIAL"),
+                      help="serial of the device if several are connected (default: $ANDROID_SERIAL)")
+    conn.add_argument("--connect", metavar="HOST[:PORT]",
+                      help="connect over the network (adb connect); default port 5555")
+    conn.add_argument("--pair", metavar="HOST:PORT",
+                      help="pair with Wireless debugging (Android 11+), then connect")
+    conn.add_argument("--pair-code", metavar="CODE",
+                      help="6-digit code for --pair (asked for if missing)")
+    conn.add_argument("--tcpip", nargs="?", const=5555, type=int, metavar="PORT",
+                      help="switch the USB phone to network adb (default port 5555) and "
+                           "continue over Wi-Fi until the next reboot")
+
+    run = parser.add_argument_group("privacy and battery")
+    run.add_argument("--run", action="store_true",
+                     help="apply the changes (without it: dry run, nothing changes)")
+    run.add_argument("--private-dns", metavar="HOST",
+                     help="fixed encrypted DNS provider, e.g. dns.quad9.net; checked after setting")
+    run.add_argument("--disable-agps", action="store_true",
+                     help="turn off Assisted GPS (stops cell tower info going to Google; "
+                          "slower first GPS fix)")
+    run.add_argument("--location-device-only", action="store_true",
+                     help="location from the phone's own GPS only, no Google network location "
+                          "(less accurate; --restore undoes it)")
+    run.add_argument("--include-optional", action="store_true",
+                     help="also remove optional packages (e.g. Bixby, Link to Windows on Samsung)")
+    run.add_argument("--battery", action="store_true",
+                     help="also apply battery settings (no mobile data on Wi-Fi, Adaptive "
+                          "Battery on, 60 Hz if forced higher)")
+    run.add_argument("--screen-timeout", type=int, metavar="SECONDS",
+                     help="screen timeout in seconds, minimum 10, e.g. 60")
+    run.add_argument("--disable-adb", action="store_true",
+                     help="with --run: turn off USB debugging and Developer options as the "
+                          "last step. This ends the adb connection; turn USB debugging on "
+                          "again on the phone to run the script later")
+
+    extra = parser.add_argument_group("AI and cloud (only with these flags)")
+    extra.add_argument("--ai", "--AI", dest="ai", action="store_true",
+                       help="AI features: assistant, Gemini, Galaxy AI. Lists them; with --run "
+                            "turns them off and removes the AI apps")
+    extra.add_argument("--cloud", "--CLOUD", dest="cloud", action="store_true",
+                       help="cloud features: Google backup, auto-sync, Samsung Cloud, OneDrive. "
+                            "Lists them; with --run turns them off")
+
+    per_app = parser.add_argument_group("per-app changes (not undone by --restore)")
+    per_app.add_argument("--revoke-permissions", metavar="PKG:PERMISSION[,...]",
+                         type=permission_list,
+                         help="take a permission away from an app, e.g. com.x:CAMERA "
+                              "(undo: pm grant --user 0 PKG PERMISSION)")
+    per_app.add_argument("--background-off", metavar="PKG[,PKG...]", type=package_list,
+                         help="stop apps running in the background (undo: cmd appops set "
+                              "PKG RUN_ANY_IN_BACKGROUND default)")
+    per_app.add_argument("--block-background-data", metavar="PKG[,PKG...]", type=package_list,
+                         help="block mobile and Wi-Fi data for apps while in the background "
+                              "(no root; undo: cmd netpolicy remove restrict-background-blacklist UID)")
+    per_app.add_argument("--revoke-notifications", metavar="PKG[,PKG...]",
+                         help="revoke notification access (apps that can read all notifications); "
+                              "--restore grants it back")
+
+    report = parser.add_argument_group("reports and output")
+    report.add_argument("--audit", action="store_true",
                         help="list apps installed outside the Play Store (report only)")
-    parser.add_argument("--location-device-only", action="store_true",
-                        help="location from the device's GPS only, no Google network location "
-                             "(less accurate)")
-    parser.add_argument("--screen-timeout", type=int, metavar="SECONDS",
-                        help="set the screen timeout, e.g. 60")
-    parser.add_argument("--revoke-notifications", metavar="PKG[,PKG...]",
-                        help="revoke notification access for these apps "
-                             "(package names, comma-separated)")
-    parser.add_argument("--disable-adb", action="store_true",
-                        help="with --run: turn off USB debugging and Developer options as the "
-                             "last step (ends the adb connection)")
-    parser.add_argument("--no-color", action="store_true",
-                        help="disable colored output (also off when NO_COLOR is set or "
-                             "output is redirected)")
-    parser.add_argument("--restore", metavar="FILE",
-                        help="restore settings/packages from a backup file")
-    parser.add_argument("--all", action="store_true",
-                        help="with --restore: restore all differing settings and packages, "
-                             "not only the ones managed by the script")
-    parser.add_argument("--force", action="store_true",
-                        help="with --restore: allow a backup from a different device")
+    report.add_argument("--report", action="store_true",
+                        help="also save this run's output as plain text in logs/")
+    report.add_argument("--no-color", action="store_true",
+                        help="no colored output (also off with NO_COLOR or when redirected)")
+
+    restore = parser.add_argument_group("restore")
+    restore.add_argument("--restore", metavar="FILE",
+                         help="restore settings and packages from a backup in logs/ "
+                              "(dry run unless --run)")
+    restore.add_argument("--all", action="store_true",
+                         help="with --restore: every setting and package that differs from the "
+                              "backup, not only the ones the script manages")
+    restore.add_argument("--force", action="store_true",
+                         help="with --restore: allow a backup taken on a different device")
+
     args = parser.parse_args()
     if args.report:
         args.no_color = True  # the report file must be plain text

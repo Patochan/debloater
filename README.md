@@ -30,6 +30,8 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 
 ## Options
 
+`python android_debloater.py --help` lists every option by group, with examples. This table has the details.
+
 | Option | Description |
 |---|---|
 | `--run` | Apply the changes. Without it, the script only does a dry run. |
