@@ -42,7 +42,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `-s`, `--serial SERIAL` | Choose a device by serial number. Defaults to `ANDROID_SERIAL`. If several devices are connected and none is chosen, the script asks which one to use. |
 | `--private-dns HOST` | Set a fixed Private DNS provider, e.g. `dns.quad9.net`, and check that it works (see [Private DNS](#private-dns)). |
 | `--disable-agps` | Turn off Assisted GPS, which sends cell tower info to Google. The trade-off is a slower first GPS fix. |
-| `--include-optional` | Also remove optional packages: Google TV, Meet and Restore on all devices; on Samsung, Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, Smart View, Themes, DeX, Samsung Video, Reminder, Edge panel extras; on CUBOT, Digital Wellbeing and the tracing tool; on all devices, Google News, Hangouts, Play Music, Sony media and notes apps and CyanogenMod extras; and more (see [Packages](#packages)). |
+| `--include-optional` | Also remove optional packages: Google TV, Meet and Restore on all devices; on Samsung, Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, Smart View, Themes, DeX, Samsung Video, Reminder, Edge panel extras; on CUBOT, Digital Wellbeing and the tracing tool; on Huawei, Huawei Video, AppGallery, Huawei Weather and the guides; on all devices, Google News, Hangouts, Play Music, Sony media and notes apps and CyanogenMod extras; and more (see [Packages](#packages)). |
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
 | `--ai` (or `--AI`) | Check AI features and list them; with `--run`, turn them off and remove AI system apps (see [AI and cloud features](#ai-and-cloud-features)). |
 | `--cloud` | Check cloud features (backup, sync, cloud apps); with `--run`, turn them off and remove cloud system apps (see [AI and cloud features](#ai-and-cloud-features)). |
@@ -317,6 +317,65 @@ The profile is detected by the factory test apps `com.freemeimp.factory` or `com
 | `com.google.android.apps.wellbeing` | Digital Wellbeing | Unused if you don't track screen time | Screen time and Focus mode |
 | `com.google.android.printservice.recommendation` | Print service suggestions | Suggests print services via Google | Print service suggestions |
 | `com.android.traceur` | System tracing tool | Developer tool for recording system traces | System trace recording |
+
+#### Huawei (Huawei firmware only, skipped on custom ROMs)
+
+The profile is detected by `com.huawei.systemmanager` or the Huawei launcher `com.huawei.android.launcher`. Purposes are taken from the package names unless stated otherwise; check on a device before removing the optional items.
+
+Removed by default:
+
+| Package | What it is | Why it's removed | What stops working |
+|---|---|---|---|
+| `com.huawei.hiview` | Diagnostic data collection and upload | Telemetry: sends diagnostic data to Huawei | Nothing noticeable |
+| `com.huawei.hiviewtunnel` | Tunnel for diagnostic data | Telemetry: carries diagnostic data to Huawei | Nothing noticeable |
+| `com.huawei.mmitest` | Factory hardware test | Only used at the factory | Factory hardware tests |
+
+**Optional** (only with `--include-optional`):
+
+| Package | What it is | Why it's removed | What stops working |
+|---|---|---|---|
+| `com.huawei.himovie.overseas` | Huawei Video | Preinstalled video app | Huawei Video |
+| `com.huawei.appmarket` | AppGallery | Alternative app store, unused if you use Google Play | AppGallery |
+| `com.huawei.hicard` | HiCard | Service suggestions based on usage | HiCard suggestions |
+| `com.huawei.recsys` | Recommendation service | Profiling for recommendations | Recommendations in Huawei apps |
+| `com.huawei.behaviorauth` | Behaviour-based authentication | Uses usage patterns for authentication | **May affect unlocking**; check on a device first |
+| `com.huawei.totemweather` | Huawei Weather | Unused weather app | Huawei Weather |
+| `com.huawei.gameassistant` | Game assistant | Unused extra | Game assistant |
+| `com.huawei.screenrecorder` | Screen recorder | Unused if you use another recorder | Built-in screen recording |
+| `com.huawei.search` | Huawei search | Unused search app | Huawei search |
+| `com.huawei.scanner` | Document scanner | Unused scanner app | Document scanner |
+| `com.huawei.android.FMRadio` | FM radio | Unused | FM radio |
+| `com.huawei.compass` | Compass | Unused if you use another compass app | Compass |
+| `com.huawei.android.FloatTasks` | Floating tasks | Unused extra | Floating task windows |
+| `com.huawei.HwMultiScreenShot` | Multi-screen screenshot | Unused extra | Multi-screen screenshots |
+| `com.huawei.android.tips` | Tips app | Unused tips app | Tips |
+| `com.huawei.android.hwupgradeguide` | Upgrade guide | Unused | Upgrade guide |
+| `com.huawei.hwstartupguide` | Startup guide | Unused, only for setup | Startup guide |
+| `com.huawei.android.hwouc` | Online upgrade check | Checks online for system upgrades | Automatic upgrade checks |
+| `com.huawei.phoneservice` | Support service | Huawei support app; sends device information for support | Support features |
+| `com.huawei.hwdetectrepair` | Hardware diagnostics | Unused diagnostic tool | Hardware diagnostics |
+| `com.huawei.synergy` | Multi-device sync | Only for other Huawei devices | Multi-device sync with other Huawei devices |
+| `com.huawei.android.pushagent` | Huawei push service | Unused if you don't use Huawei apps | **Push notifications for Huawei apps** |
+| `com.huawei.autoinstallapkfrommcc` | Installs apps by carrier/region | Installs apps without asking you | Automatic carrier/region app installs |
+| `com.example.android.notepad` | Sample notepad app | Sample app, not needed | Sample notepad |
+
+**With `--ai`:**
+
+| Package | What it is | Why it's removed | What stops working |
+|---|---|---|---|
+| `com.huawei.hiai` | HiAI AI engine | AI engine for on-device AI features | On-device AI features |
+| `com.huawei.hitouch` | Smart taps and text actions | AI actions on screen text | Smart taps and text actions |
+| `com.huawei.intelligent` | Intelligent assistant | AI assistant | Intelligent assistant |
+| `com.huawei.hiaction` | Action suggestions | AI suggestions based on usage | Action suggestions |
+
+**With `--cloud`:**
+
+| Package | What it is | Why it's removed | What stops working |
+|---|---|---|---|
+| `com.huawei.hicloud` | Huawei Cloud | Cloud backup and sync | Huawei Cloud backup and sync |
+| `com.huawei.KoBackup` | Huawei backup | Backup to Huawei Cloud | Backups |
+| `com.huawei.hidisk` | Huawei Drive | Cloud storage | Huawei Drive |
+| `com.hicloud.android.clone` | Phone Clone | Cloud-based phone transfer | Phone Clone |
 
 #### AI (only with `--ai`)
 

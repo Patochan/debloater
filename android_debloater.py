@@ -286,6 +286,53 @@ VENDOR_PROFILES = {
             "com.android.traceur",                 # system tracing tool
         ],
     },
+    "huawei": {
+        "marker_packages": ["com.huawei.systemmanager", "com.huawei.android.launcher"],
+        "settings": [],
+        "packages": [
+            "com.huawei.hiview",                   # diagnostic data collection and upload
+            "com.huawei.hiviewtunnel",             # tunnel that sends diagnostic data to Huawei
+            "com.huawei.mmitest",                  # factory hardware test
+        ],
+        "optional_packages": [
+            "com.huawei.himovie.overseas",         # Huawei Video
+            "com.huawei.appmarket",                # AppGallery
+            "com.huawei.hicard",                   # HiCard service suggestions
+            "com.huawei.recsys",                   # recommendation service
+            "com.huawei.behaviorauth",             # behaviour-based authentication (may affect unlocking)
+            "com.huawei.totemweather",             # Huawei Weather
+            "com.huawei.gameassistant",            # game assistant
+            "com.huawei.screenrecorder",           # screen recorder
+            "com.huawei.search",                   # Huawei search
+            "com.huawei.scanner",                  # document scanner
+            "com.huawei.android.FMRadio",          # FM radio
+            "com.huawei.compass",                  # compass
+            "com.huawei.android.FloatTasks",       # floating tasks
+            "com.huawei.HwMultiScreenShot",        # multi-screen screenshot
+            "com.huawei.android.tips",             # Tips app
+            "com.huawei.android.hwupgradeguide",   # upgrade guide
+            "com.huawei.hwstartupguide",           # startup guide
+            "com.huawei.android.hwouc",            # online upgrade check
+            "com.huawei.phoneservice",             # support service
+            "com.huawei.hwdetectrepair",           # hardware diagnostics
+            "com.huawei.synergy",                  # multi-device sync
+            "com.huawei.android.pushagent",        # Huawei push (breaks push for Huawei apps)
+            "com.huawei.autoinstallapkfrommcc",    # installs apps based on carrier/region
+            "com.example.android.notepad",         # sample notepad app
+        ],
+        "ai_packages": [
+            "com.huawei.hiai",                     # HiAI AI engine
+            "com.huawei.hitouch",                  # smart taps and text actions
+            "com.huawei.intelligent",              # intelligent assistant
+            "com.huawei.hiaction",                 # action suggestions
+        ],
+        "cloud_packages": [
+            "com.huawei.hicloud",                  # Huawei Cloud
+            "com.huawei.KoBackup",                 # backup
+            "com.huawei.hidisk",                   # Huawei Drive
+            "com.hicloud.android.clone",           # Phone Clone (cloud transfer)
+        ],
+    },
 }
 # Short labels shown next to package names in the output (details: README).
 # Keys ending in "." match every package with that prefix.
@@ -395,6 +442,41 @@ PACKAGE_LABELS = {
     "com.google.android.apps.genie.geniewidget": "Google Now widget (Genie)",
     "com.google.android.ears": "Google Now speech recognition",
     "com.google.android.apps.uploader": "Google Photos uploader (old Picasa sync)",
+    "com.huawei.hiview": "Huawei diagnostic data upload",
+    "com.huawei.hiviewtunnel": "Huawei diagnostic data tunnel",
+    "com.huawei.mmitest": "Factory hardware test",
+    "com.huawei.himovie.overseas": "Huawei Video",
+    "com.huawei.appmarket": "AppGallery",
+    "com.huawei.hicard": "HiCard service suggestions",
+    "com.huawei.recsys": "Huawei recommendation service",
+    "com.huawei.behaviorauth": "Behaviour-based authentication (may affect unlocking)",
+    "com.huawei.totemweather": "Huawei Weather",
+    "com.huawei.gameassistant": "Game assistant",
+    "com.huawei.screenrecorder": "Screen recorder",
+    "com.huawei.search": "Huawei search",
+    "com.huawei.scanner": "Document scanner",
+    "com.huawei.android.FMRadio": "FM radio",
+    "com.huawei.compass": "Compass",
+    "com.huawei.android.FloatTasks": "Floating tasks",
+    "com.huawei.HwMultiScreenShot": "Multi-screen screenshot",
+    "com.huawei.android.tips": "Tips app",
+    "com.huawei.android.hwupgradeguide": "Upgrade guide",
+    "com.huawei.hwstartupguide": "Startup guide",
+    "com.huawei.android.hwouc": "Online upgrade check",
+    "com.huawei.phoneservice": "Huawei support service",
+    "com.huawei.hwdetectrepair": "Hardware diagnostics",
+    "com.huawei.synergy": "Multi-device sync",
+    "com.huawei.android.pushagent": "Huawei push service",
+    "com.huawei.autoinstallapkfrommcc": "Installs apps by carrier/region",
+    "com.example.android.notepad": "Sample notepad app",
+    "com.huawei.hiai": "HiAI AI engine",
+    "com.huawei.hitouch": "Smart taps and text actions",
+    "com.huawei.intelligent": "Intelligent assistant",
+    "com.huawei.hiaction": "Action suggestions",
+    "com.huawei.hicloud": "Huawei Cloud",
+    "com.huawei.KoBackup": "Huawei backup",
+    "com.huawei.hidisk": "Huawei Drive",
+    "com.hicloud.android.clone": "Phone Clone",
 }
 
 
@@ -1776,7 +1858,8 @@ def main() -> None:
                      help="also remove optional packages (Google: Google TV, Meet, Restore; Samsung: "
                           "Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, "
                           "Smart View, Themes, DeX, Samsung Video, Reminder; CUBOT: Digital Wellbeing, "
-                          "tracing tool; all devices: Google News, Hangouts, Play Music, Sony media "
+                          "tracing tool; Huawei: Huawei Video, AppGallery, Huawei Weather, guides "
+                          "and more; all devices: Google News, Hangouts, Play Music, Sony media "
                           "and notes apps, CyanogenMod extras and more)")
     run.add_argument("--battery", action="store_true",
                      help="also apply battery settings (no mobile data on Wi-Fi, Adaptive "
