@@ -83,6 +83,7 @@ AI_PACKAGES = [
     "com.google.android.apps.aiwallpapers",        # AI wallpapers
     "com.google.android.as",                       # Android System Intelligence
     "com.google.android.as.oss",                   # Private Compute Services (ASI network bridge)
+    "com.google.ar.lens",                          # Google Lens (AI visual search)
 ]
 # Apps the user installed themselves: only reported, never removed
 AI_USER_APPS = {
@@ -116,6 +117,8 @@ COMMON_PACKAGES = [
     "com.google.android.feedback",
     "com.google.mainline.telemetry",
     "com.google.android.partnersetup",
+    # Google Device Health Services: device telemetry
+    "com.google.android.apps.turbo",
     # Preinstalled Facebook services (run even without the Facebook app, e.g. Samsung/Xiaomi)
     "com.facebook.services",
     "com.facebook.system",
@@ -154,10 +157,26 @@ VENDOR_PROFILES = {
             "com.samsung.android.mapsagent",       # Samsung app recommendations / tracking
             "com.aura.oobe.samsung",               # AppCloud (installs bloatware unasked)
             "com.sec.android.diagmonagent",        # DiagMonAgent (error reports to Samsung)
+            "com.samsung.android.da.daagent",      # Device Analytics Agent (usage data to Samsung)
+            "com.samsung.android.knox.analytics.uploader",  # Knox analytics upload (telemetry)
         ],
         "optional_packages": [
             "com.samsung.android.bixby.agent",     # Bixby (if only Google Assistant is used)
             "com.microsoft.appmanager",            # Link to Windows (SMS/contacts/mic access)
+            "com.sec.android.app.kidshome",        # Samsung Kids (kids mode)
+            "com.samsung.android.kidsinstaller",   # Samsung Kids app installer
+            "com.samsung.android.stickercenter",   # sticker store
+            "com.samsung.android.app.dressroom",   # AR Emoji avatar outfits
+            "com.samsung.android.aremoji",         # AR Emoji
+            "com.samsung.android.game.gos",        # Game Optimizing Service
+            "com.samsung.android.game.gametools",  # Game Tools (game launcher panel)
+            "com.samsung.android.warrantycare",    # warranty and care service
+            "com.samsung.android.app.parentalcare",  # Parental care (kids' usage limits)
+            "com.samsung.android.smartswitchassistant",  # Smart Switch assistant
+            "com.sec.android.easyMover",           # Smart Switch (phone-to-phone transfer)
+            "com.samsung.android.app.taskedge",    # Edge panel tasks
+            "com.samsung.android.app.clipboardedge",  # Edge panel clipboard
+            "com.samsung.android.forest",          # Digital Wellbeing "Forest"
         ],
         # --ai: Galaxy AI. Settings are only written if the key exists on the device.
         "ai_settings": [
@@ -178,6 +197,7 @@ VENDOR_PROFILES = {
             "com.samsung.android.bixby.agent",       # Bixby
             "com.samsung.android.bixby.wakeup",      # "Hi Bixby" voice wake-up
             "com.samsung.android.bixby.ondevice.*",  # Bixby on-device language packs
+            "com.samsung.android.intellivoiceservice",  # Bixby voice processing engine
         ],
         # --cloud: settings only written if the key exists on the device
         "cloud_settings": [
@@ -240,6 +260,25 @@ PACKAGE_LABELS = {
     "com.microsoft.skydrive": "OneDrive",
     "com.google.android.contactkeys": "Android System Key Verifier",
     "com.samsung.android.app.omcagent": "carrier/region app installer",
+    "com.google.android.apps.turbo": "Device Health Services: device telemetry",
+    "com.google.ar.lens": "Google Lens: AI visual search",
+    "com.samsung.android.da.daagent": "Device Analytics Agent: usage data to Samsung",
+    "com.samsung.android.knox.analytics.uploader": "Knox analytics: telemetry to Samsung",
+    "com.samsung.android.intellivoiceservice": "Bixby voice processing engine",
+    "com.sec.android.app.kidshome": "Samsung Kids",
+    "com.samsung.android.kidsinstaller": "Samsung Kids installer",
+    "com.samsung.android.stickercenter": "sticker store",
+    "com.samsung.android.app.dressroom": "AR Emoji avatar outfits",
+    "com.samsung.android.aremoji": "AR Emoji",
+    "com.samsung.android.game.gos": "Game Optimizing Service",
+    "com.samsung.android.game.gametools": "Game Tools launcher panel",
+    "com.samsung.android.warrantycare": "Warranty and care service",
+    "com.samsung.android.app.parentalcare": "Parental care: kids' usage limits",
+    "com.samsung.android.smartswitchassistant": "Smart Switch assistant",
+    "com.sec.android.easyMover": "Smart Switch: phone-to-phone transfer",
+    "com.samsung.android.app.taskedge": "Edge panel tasks",
+    "com.samsung.android.app.clipboardedge": "Edge panel clipboard",
+    "com.samsung.android.forest": "Digital Wellbeing: Forest",
 }
 
 
@@ -1617,7 +1656,8 @@ def main() -> None:
                      help="no notifications at all on the lock screen (the default only hides "
                           "their content); you miss alerts while locked; --restore undoes it")
     run.add_argument("--include-optional", action="store_true",
-                     help="also remove optional packages (e.g. Bixby, Link to Windows on Samsung)")
+                     help="also remove optional packages (Samsung: Bixby, Link to Windows, Samsung "
+                          "Kids, AR Emoji, Game Tools, Smart Switch, Edge panel apps and more)")
     run.add_argument("--battery", action="store_true",
                      help="also apply battery settings (no mobile data on Wi-Fi, Adaptive "
                           "Battery on, 60 Hz if forced higher)")

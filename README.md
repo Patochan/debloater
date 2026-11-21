@@ -42,7 +42,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `-s`, `--serial SERIAL` | Choose a device by serial number. Defaults to `ANDROID_SERIAL`. If several devices are connected and none is chosen, the script asks which one to use. |
 | `--private-dns HOST` | Set a fixed Private DNS provider, e.g. `dns.quad9.net`, and check that it works (see [Private DNS](#private-dns)). |
 | `--disable-agps` | Turn off Assisted GPS, which sends cell tower info to Google. The trade-off is a slower first GPS fix. |
-| `--include-optional` | Also remove optional packages, e.g. Bixby and Link to Windows on Samsung. |
+| `--include-optional` | Also remove optional packages: on Samsung, Bixby, Link to Windows, Samsung Kids, AR Emoji, Game Tools, Smart Switch, Edge panel extras and more (see [Packages](#packages)). |
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
 | `--ai` (or `--AI`) | Check AI features and list them; with `--run`, turn them off and remove AI system apps (see [AI and cloud features](#ai-and-cloud-features)). |
 | `--cloud` | Check cloud features (backup, sync, cloud apps); with `--run`, turn them off and remove cloud system apps (see [AI and cloud features](#ai-and-cloud-features)). |
@@ -210,6 +210,7 @@ The tables below explain every package the script can remove: what it is, why it
 | `com.facebook.services` | Facebook Services, preinstalled by the manufacturer | Runs in the background and contacts Facebook even if no Facebook app is used | Nothing; Facebook, Instagram and WhatsApp from the Play Store keep working |
 | `com.facebook.system` | Facebook App Installer | Can install and update Facebook apps outside the Play Store | Same as above |
 | `com.facebook.appmanager` | Facebook App Manager | Background updater and data collection for Facebook apps | Same as above |
+| `com.google.android.apps.turbo` | Device Health Services | Telemetry: collects device health and usage data for Google | Nothing noticeable |
 
 #### Samsung
 
@@ -221,6 +222,8 @@ The tables below explain every package the script can remove: what it is, why it
 | `com.samsung.android.mapsagent` | Samsung location agent for location-based suggestions (sparsely documented) | Unwanted service: location-based tracking for suggestions | Location-based suggestions in Samsung apps |
 | `com.aura.oobe.samsung` | AppCloud (by ironSource) | Ads / bloat: installs promoted apps during setup and system updates | Nothing |
 | `com.sec.android.diagmonagent` | DiagMonAgent | Telemetry: sends diagnostic and error reports to Samsung | Automatic error reports to Samsung |
+| `com.samsung.android.da.daagent` | Device Analytics Agent | Telemetry: sends usage data to Samsung (purpose taken from the package name, not verified on a device) | Nothing noticeable |
+| `com.samsung.android.knox.analytics.uploader` | Knox analytics uploader | Telemetry: uploads analytics data to Samsung (purpose taken from the package name, not verified on a device) | Nothing noticeable |
 
 **Optional** (only with `--include-optional`):
 
@@ -228,6 +231,20 @@ The tables below explain every package the script can remove: what it is, why it
 |---|---|---|---|
 | `com.samsung.android.bixby.agent` | Bixby voice assistant | Unwanted service for people who use Google Assistant or no assistant; has broad permissions (location, call log, sensors) | Bixby; set the side key to the power menu |
 | `com.microsoft.appmanager` | Link to Windows (Phone Link) | Has pre-granted access to SMS, contacts, camera and microphone | The connection to Windows PCs (Phone Link) |
+| `com.sec.android.app.kidshome` | Samsung Kids | Not needed unless you use kids' mode | Samsung Kids mode |
+| `com.samsung.android.kidsinstaller` | Samsung Kids installer | Only installs Samsung Kids content | Samsung Kids downloads |
+| `com.samsung.android.stickercenter` | Sticker store | Unused extra app | Downloading new stickers |
+| `com.samsung.android.app.dressroom` | AR Emoji avatar outfits | Unused extra app | Avatar outfit downloads |
+| `com.samsung.android.aremoji` | AR Emoji | Unused extra app | AR Emoji avatars |
+| `com.samsung.android.game.gos` | Game Optimizing Service | Background service for games | Game performance tuning |
+| `com.samsung.android.game.gametools` | Game Tools | Game launcher panel and recording extras | Game Tools panel |
+| `com.samsung.android.warrantycare` | Warranty and care service | Unused service; checks warranty status | Warranty status and care checks in Samsung apps |
+| `com.samsung.android.app.parentalcare` | Parental care | Only needed for kids' usage limits | Parental control features |
+| `com.samsung.android.smartswitchassistant` | Smart Switch assistant | Only needed during phone transfers | Smart Switch transfers |
+| `com.sec.android.easyMover` | Smart Switch | Only needed during phone transfers | Smart Switch transfers |
+| `com.samsung.android.app.taskedge` | Edge panel tasks | Unused Edge panel extra | Edge panel tasks |
+| `com.samsung.android.app.clipboardedge` | Edge panel clipboard | Unused Edge panel extra | Edge panel clipboard |
+| `com.samsung.android.forest` | Digital Wellbeing "Forest" | Unused extra | Forest focus feature |
 
 #### Xiaomi (MIUI / HyperOS only, skipped on custom ROMs)
 
@@ -246,6 +263,7 @@ The tables below explain every package the script can remove: what it is, why it
 | `com.google.android.apps.aiwallpapers` | AI wallpaper generator | AI | AI wallpapers |
 | `com.google.android.as` | Android System Intelligence | On-device AI that analyzes screen content, notifications and app usage | Smart text selection, Live Caption, app suggestions, smart replies |
 | `com.google.android.as.oss` | Private Compute Services | Network connection for Android System Intelligence | Nothing without Android System Intelligence |
+| `com.google.ar.lens` | Google Lens | AI visual search of photos and the camera view | Google Lens |
 | `com.samsung.android.aicore` | Samsung AI Core | AI runtime for Galaxy AI | Galaxy AI features that run on the device |
 | `com.samsung.android.smartsuggestions` | Smart suggestions | AI suggestions based on usage; reads all notifications | App and action suggestions |
 | `com.samsung.android.app.interpreter` | Interpreter | Galaxy AI live translation of conversations | Interpreter |
@@ -256,6 +274,7 @@ The tables below explain every package the script can remove: what it is, why it
 | `com.samsung.android.bixby.agent` | Bixby voice assistant | AI assistant | Bixby |
 | `com.samsung.android.bixby.wakeup` | "Hi Bixby" voice wake-up | Listens for the wake word | Voice wake-up |
 | `com.samsung.android.bixby.ondevice.*` | Bixby on-device language packs (e.g. `.dede`, `.enus`) | Speech recognition for Bixby | Nothing without Bixby |
+| `com.samsung.android.intellivoiceservice` | Bixby voice processing engine | Speech processing for Bixby | Bixby voice commands |
 
 #### Cloud (only with `--cloud`, Samsung)
 
