@@ -92,6 +92,12 @@ class PrivacySettingsTest(unittest.TestCase):
         self.assertIn("[DRY]  global/b: 2 -> 3", out.getvalue())
 
 
+class ManagedSettingsTest(unittest.TestCase):
+    def test_location_setting_is_restorable(self):
+        # --restore only reverts settings listed here, so the location option must be included
+        self.assertIn(("secure", "location_mode"), ad.managed_settings())
+
+
 class ExpandPackagesTest(unittest.TestCase):
     def test_wildcard_is_expanded_and_duplicates_dropped(self):
         installed = {"com.x.one", "com.x.two", "com.other"}

@@ -120,6 +120,12 @@ COMMON_PACKAGES = [
     "com.facebook.appmanager",
 ]
 
+# Location settings, only changed with --location-device-only (trade-off: less accurate location)
+LOCATION_SETTINGS = [
+    # 1 = device GPS only, no Google network location (3 = high accuracy, uses Google's services)
+    ("secure", "location_mode", "1"),
+]
+
 # Vendor-specific additions. Key = ro.product.manufacturer (lowercase).
 # "optional_packages" are only removed with --include-optional.
 # "marker_packages": if none of them is installed, the device most likely runs a
@@ -667,7 +673,8 @@ def parse_backup(path: str):
 
 def managed_settings() -> set[tuple[str, str]]:
     keys = {(ns, k) for ns, k, _ in
-            COMMON_SETTINGS + BATTERY_SETTINGS + AI_SETTINGS + CLOUD_SETTINGS}
+            COMMON_SETTINGS + BATTERY_SETTINGS + AI_SETTINGS + CLOUD_SETTINGS
+            + LOCATION_SETTINGS}
     for profile in VENDOR_PROFILES.values():
         for group in ("settings", "ai_settings", "cloud_settings"):
             keys |= {(ns, k) for ns, k, _ in profile.get(group, [])}
@@ -1388,6 +1395,9 @@ def main() -> None:
     parser.add_argument("--cloud", "--CLOUD", dest="cloud", action="store_true",
                         help="check cloud features (backup, sync, cloud apps) and, with --run, "
                              "turn them off / remove them")
+    parser.add_argument("--location-device-only", action="store_true",
+                        help="location from the device's GPS only, no Google network location "
+                             "(less accurate)")
     parser.add_argument("--screen-timeout", type=int, metavar="SECONDS",
                         help="set the screen timeout, e.g. 60")
     parser.add_argument("--revoke-notifications", metavar="PKG[,PKG...]",
@@ -1476,6 +1486,8 @@ def main() -> None:
         settings += AI_SETTINGS + existing_settings(profile.get("ai_settings", []))
     if args.cloud:
         settings += CLOUD_SETTINGS + existing_settings(profile.get("cloud_settings", []))
+    if args.location_device_only:
+        settings += LOCATION_SETTINGS
     if args.battery:
         settings += BATTERY_SETTINGS
         fix = refresh_rate_fix()

@@ -44,6 +44,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `--battery` | Also apply battery runtime settings (see [Battery](#battery)). |
 | `--ai` (or `--AI`) | Check AI features and list them; with `--run`, turn them off and remove AI system apps (see [AI and cloud features](#ai-and-cloud-features)). |
 | `--cloud` | Check cloud features (backup, sync, cloud apps); with `--run`, turn them off and remove cloud system apps (see [AI and cloud features](#ai-and-cloud-features)). |
+| `--location-device-only` | Location from the phone's GPS only, no Google network location (`secure/location_mode` 3 → 1). Trade-off: less accurate location. |
 | `--screen-timeout SECONDS` | Set the screen timeout, e.g. `60`. Minimum 10 seconds. |
 | `--revoke-notifications PKG[,PKG...]` | Revoke notification access for these apps (package names from the manual recommendations). Restore grants it back. |
 | `--disable-adb` | With `--run`: turn off USB debugging and Developer options as the very last step. This ends the adb connection; turn USB debugging on again on the device to run the script later. |
@@ -464,6 +465,10 @@ Restore an earlier backup (see [Restoring](#restoring)), or set Private DNS back
 ```bash
 adb shell settings put global private_dns_mode opportunistic
 ```
+
+## Location
+
+`--location-device-only` sets `secure/location_mode` to `1`: the phone uses only its own GPS. Android's default (`3`, high accuracy) also uses Google's network location, which sends nearby Wi-Fi networks and cell towers to Google. The trade-off: the first GPS fix is slower and the position is less accurate indoors. Maps and other apps still work. The change is part of the restore scope, so `--restore` brings the old value back.
 
 ## Battery
 
