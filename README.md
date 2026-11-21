@@ -52,6 +52,7 @@ Read the dry-run output first. Every setting is shown as `current -> new`, and s
 | `--background-off PKG[,PKG...]` | Stop these apps from running in the background (Android `appops` `RUN_ANY_IN_BACKGROUND`). Not undone by `--restore`; see [Background activity](#background-activity---background-off). |
 | `--report` | Also save the whole output of the run as plain text in `logs/report_<timestamp>.txt`. Implies `--no-color`. |
 | `--audit` | Report only: list apps installed outside the Play Store, with the installer that put them on the phone. Changes nothing. |
+| `--lock-notifications-off` | No notifications at all on the lock screen (`secure/lock_screen_show_notifications` 1 → 0). The default only hides their content. Trade-off: alerts are missed while the phone is locked. Restored by `--restore`. |
 | `--location-device-only` | Location from the phone's GPS only, no Google network location (`secure/location_mode` 3 → 1). Trade-off: less accurate location. |
 | `--screen-timeout SECONDS` | Set the screen timeout, e.g. `60`. Minimum 10 seconds. |
 | `--revoke-notifications PKG[,PKG...]` | Revoke notification access for these apps (package names from the manual recommendations). Restore grants it back. |
@@ -566,6 +567,10 @@ Restore an earlier backup (see [Restoring](#restoring)), or set Private DNS back
 ```bash
 adb shell settings put global private_dns_mode opportunistic
 ```
+
+## Lock screen
+
+`--lock-notifications-off` sets `secure/lock_screen_show_notifications` to `0`, so no notifications appear on the lock screen. The script's default already hides the text of lock-screen notifications (`lock_screen_allow_private_notifications=0`); this option removes the notification itself. The trade-off: you see alerts only after unlocking. The change is part of the restore scope.
 
 ## Location
 

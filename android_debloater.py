@@ -128,6 +128,12 @@ LOCATION_SETTINGS = [
     ("secure", "location_mode", "1"),
 ]
 
+# Lock screen, only changed with --lock-notifications-off (trade-off: alerts are missed while locked)
+LOCK_SCREEN_SETTINGS = [
+    # 0 = no notifications on the lock screen at all (the existing privacy setting only hides content)
+    ("secure", "lock_screen_show_notifications", "0"),
+]
+
 # Vendor-specific additions. Key = ro.product.manufacturer (lowercase).
 # "optional_packages" are only removed with --include-optional.
 # "marker_packages": if none of them is installed, the device most likely runs a
@@ -790,7 +796,7 @@ def parse_backup(path: str):
 def managed_settings() -> set[tuple[str, str]]:
     keys = {(ns, k) for ns, k, _ in
             COMMON_SETTINGS + BATTERY_SETTINGS + AI_SETTINGS + CLOUD_SETTINGS
-            + LOCATION_SETTINGS}
+            + LOCATION_SETTINGS + LOCK_SCREEN_SETTINGS}
     for profile in VENDOR_PROFILES.values():
         for group in ("settings", "ai_settings", "cloud_settings"):
             keys |= {(ns, k) for ns, k, _ in profile.get(group, [])}
@@ -1607,6 +1613,9 @@ def main() -> None:
     run.add_argument("--location-device-only", action="store_true",
                      help="location from the phone's own GPS only, no Google network location "
                           "(less accurate; --restore undoes it)")
+    run.add_argument("--lock-notifications-off", action="store_true",
+                     help="no notifications at all on the lock screen (the default only hides "
+                          "their content); you miss alerts while locked; --restore undoes it")
     run.add_argument("--include-optional", action="store_true",
                      help="also remove optional packages (e.g. Bixby, Link to Windows on Samsung)")
     run.add_argument("--battery", action="store_true",
@@ -1743,6 +1752,8 @@ def main() -> None:
         settings += CLOUD_SETTINGS + existing_settings(profile.get("cloud_settings", []))
     if args.location_device_only:
         settings += LOCATION_SETTINGS
+    if args.lock_notifications_off:
+        settings += LOCK_SCREEN_SETTINGS
     if args.battery:
         settings += BATTERY_SETTINGS
         fix = refresh_rate_fix()
