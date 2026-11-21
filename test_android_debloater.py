@@ -191,3 +191,17 @@ class PrivateDnsSupportTest(unittest.TestCase):
         self.assertFalse(ad.private_dns_supported("19"))
         self.assertFalse(ad.private_dns_supported("27"))
         self.assertFalse(ad.private_dns_supported(""))
+
+
+class ResolvePrivateDnsTest(unittest.TestCase):
+    def test_default_when_nothing_given(self):
+        self.assertEqual(ad.resolve_private_dns(None, False), ad.DEFAULT_PRIVATE_DNS)
+
+    def test_explicit_host_is_used(self):
+        self.assertEqual(ad.resolve_private_dns("one.one.one.one", False), "one.one.one.one")
+
+    def test_no_private_dns_flag_disables(self):
+        self.assertIsNone(ad.resolve_private_dns(None, True))
+
+    def test_empty_value_disables(self):
+        self.assertIsNone(ad.resolve_private_dns("", False))

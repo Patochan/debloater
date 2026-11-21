@@ -36,6 +36,15 @@ DEFAULT_PRIVATE_DNS = "dns.quad9.net"
 PRIVATE_DNS_MIN_SDK = 28  # Android 9 (Pie) introduced Private DNS
 
 
+def resolve_private_dns(arg: str | None, disable: bool) -> str | None:
+    """Provider to set: --no-private-dns -> None, no --private-dns -> default, "" -> None."""
+    if disable:
+        return None
+    if arg is None:
+        return DEFAULT_PRIVATE_DNS
+    return arg or None
+
+
 def private_dns_supported(sdk: str) -> bool:
     """True if the Android SDK level (ro.build.version.sdk) has Private DNS."""
     return sdk.isdigit() and int(sdk) >= PRIVATE_DNS_MIN_SDK
@@ -1852,9 +1861,12 @@ def main() -> None:
     run = parser.add_argument_group("privacy and battery")
     run.add_argument("--run", action="store_true",
                      help="apply the changes (without it: dry run, nothing changes)")
-    run.add_argument("--private-dns", metavar="HOST", default=DEFAULT_PRIVATE_DNS,
+    run.add_argument("--private-dns", metavar="HOST", default=None,
                      help=f"fixed encrypted DNS provider (default: {DEFAULT_PRIVATE_DNS}); "
                           "checked after setting")
+    run.add_argument("--no-private-dns", action="store_true",
+                     help="don't set a Private DNS provider (the default sets "
+                          f"{DEFAULT_PRIVATE_DNS})")
     run.add_argument("--disable-agps", action="store_true",
                      help="turn off Assisted GPS (stops cell tower info going to Google; "
                           "slower first GPS fix)")
@@ -1928,6 +1940,8 @@ def main() -> None:
                          help="with --restore: allow a backup taken on a different device")
 
     args = parser.parse_args()
+    if args.no_private_dns and args.private_dns is not None:
+        parser.error("--private-dns and --no-private-dns cannot be used together")
     if args.report:
         args.no_color = True  # the report file must be plain text
         os.makedirs(LOG_DIR, exist_ok=True)
@@ -1992,7 +2006,7 @@ def main() -> None:
         profile = empty_profile
 
     settings = COMMON_SETTINGS + profile["settings"]
-    private_dns = args.private_dns
+    private_dns = resolve_private_dns(args.private_dns, args.no_private_dns)
     dns_supported = private_dns_supported(dev["sdk"])
     if private_dns and not dns_supported:
         print(f"[SKIP] Private DNS needs Android 9 or newer (this device: Android {dev['android']}).")
